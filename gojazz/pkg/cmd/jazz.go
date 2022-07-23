@@ -109,7 +109,8 @@ func repl() {
 	interpreter := jazz.NewInterpreter(jazz.WithRepl(true))
 	reader := bufio.NewReader(os.Stdin)
 
-	fmt.Println(strcolor.Cyan(fmt.Sprintf("Welcome to Jazz %s\n", version)))
+	fmt.Println(strcolor.BrightCyan(fmt.Sprintf("Welcome to Jazz v%s", version)))
+	fmt.Println(strcolor.Cyan("Type \".exit\" to exit."))
 
 	for {
 		fmt.Printf("> ")
