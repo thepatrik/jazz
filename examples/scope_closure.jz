@@ -1,0 +1,16 @@
+fn makeCounter() {
+    let i = 0;
+    fn count() {
+        i = i + 1;
+        print i;
+    }
+
+    return count;
+}
+
+let count = makeCounter();
+count();
+count();
+count();
+count();
+count();
