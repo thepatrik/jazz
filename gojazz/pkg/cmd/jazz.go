@@ -3,7 +3,6 @@ package cmd
 import (
 	"bufio"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -94,14 +93,12 @@ func runFile(file string) {
 }
 
 func runFilesInDir(dir string) {
-	log.Println(dir)
 	files, err := filepath.Glob(filepath.Join(dir, "*.jz"))
 	if err != nil {
 		fmt.Printf("could not read files in %s\n", dir)
 		os.Exit(1)
 	}
 
-	log.Println(files)
 	for _, file := range files {
 
 		runFile(file)
