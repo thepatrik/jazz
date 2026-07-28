@@ -45,8 +45,14 @@ typedef struct {
 
 typedef struct {
     Token name;
-    int depth;  // -1 = declared but not yet initialised
+    int depth;        // -1 = declared but not yet initialised
+    bool isCaptured;  // true if captured by an inner function
 } Local;
+
+typedef struct {
+    uint8_t index;  // local slot (isLocal) or enclosing upvalue slot (!isLocal)
+    bool isLocal;
+} Upvalue;
 
 typedef enum {
     TYPE_FUNCTION,
@@ -60,6 +66,7 @@ typedef struct Compiler {
     Local locals[UINT8_COUNT];
     int localCount;
     int scopeDepth;
+    Upvalue upvalues[UINT8_COUNT];
 } Compiler;
 
 // ---- Globals ---------------------------------------------------------------
@@ -84,6 +91,7 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
     // Reserve slot 0 for the function/script being called.
     Local* local       = &current->locals[current->localCount++];
     local->depth       = 0;
+    local->isCaptured  = false;
     local->name.start  = "";
     local->name.length = 0;
 }
@@ -194,7 +202,11 @@ static void endScope() {
     current->scopeDepth--;
     while (current->localCount > 0 &&
            current->locals[current->localCount - 1].depth > current->scopeDepth) {
-        emitByte(OP_POP);
+        if (current->locals[current->localCount - 1].isCaptured) {
+            emitByte(OP_CLOSE_UPVALUE);
+        } else {
+            emitByte(OP_POP);
+        }
         current->localCount--;
     }
 }
@@ -247,14 +259,52 @@ static int resolveLocal(Compiler* compiler, Token* name) {
     return -1;  // not found; treat as global
 }
 
+static int addUpvalue(Compiler* compiler, uint8_t index, bool isLocal) {
+    int count = compiler->function->upvalueCount;
+    // Reuse an existing upvalue for the same variable.
+    for (int i = 0; i < count; i++) {
+        Upvalue* uv = &compiler->upvalues[i];
+        if (uv->index == index && uv->isLocal == isLocal)
+            return i;
+    }
+    if (count == UINT8_COUNT) {
+        error("Too many closure variables in function.");
+        return 0;
+    }
+    compiler->upvalues[count].isLocal = isLocal;
+    compiler->upvalues[count].index   = index;
+    return compiler->function->upvalueCount++;
+}
+
+static int resolveUpvalue(Compiler* compiler, Token* name) {
+    if (compiler->enclosing == NULL)
+        return -1;
+
+    // Is the variable a local in the immediately enclosing function?
+    int local = resolveLocal(compiler->enclosing, name);
+    if (local != -1) {
+        compiler->enclosing->locals[local].isCaptured = true;
+        return addUpvalue(compiler, (uint8_t)local, true);
+    }
+
+    // Walk the enclosing chain (captures an upvalue of the enclosing function).
+    int upvalue = resolveUpvalue(compiler->enclosing, name);
+    if (upvalue != -1) {
+        return addUpvalue(compiler, (uint8_t)upvalue, false);
+    }
+
+    return -1;
+}
+
 static void addLocal(Token name) {
     if (current->localCount == UINT8_COUNT) {
         error("Too many local variables in one scope.");
         return;
     }
-    Local* local = &current->locals[current->localCount++];
-    local->name  = name;
-    local->depth = -1;
+    Local* local      = &current->locals[current->localCount++];
+    local->name       = name;
+    local->depth      = -1;
+    local->isCaptured = false;
 }
 
 static void declareVariable() {
@@ -416,6 +466,9 @@ static void namedVariable(Token name, bool canAssign) {
     if (arg != -1) {
         getOp = OP_GET_LOCAL;
         setOp = OP_SET_LOCAL;
+    } else if ((arg = resolveUpvalue(current, &name)) != -1) {
+        getOp = OP_GET_UPVALUE;
+        setOp = OP_SET_UPVALUE;
     } else {
         arg   = identifierConstant(&name);
         getOp = OP_GET_GLOBAL;
@@ -668,6 +721,11 @@ static void function(FunctionType type) {
     initCompiler(&compiler, type);
     beginScope();
 
+    // Record the function's name for error messages and printing.
+    if (type != TYPE_SCRIPT) {
+        current->function->name = strndup(parser.previous.start, parser.previous.length);
+    }
+
     consume(TOKEN_LEFT_PAREN, "Expected '(' after function name.");
     if (!check(TOKEN_RIGHT_PAREN)) {
         do {
@@ -684,8 +742,14 @@ static void function(FunctionType type) {
     consume(TOKEN_LEFT_BRACE, "Expected '{' before function body.");
     blockStatement();
 
+    // endCompiler restores 'current' to the enclosing compiler but the local
+    // 'compiler' still holds the upvalue descriptors we need to emit.
     ObjFunction* fn = endCompiler();
-    emitBytes(OP_CONSTANT, makeConstant(OBJ_VAL(fn)));
+    emitBytes(OP_CLOSURE, makeConstant(OBJ_VAL(fn)));
+    for (int i = 0; i < fn->upvalueCount; i++) {
+        emitByte(compiler.upvalues[i].isLocal ? 1 : 0);
+        emitByte(compiler.upvalues[i].index);
+    }
 }
 
 static void fnDeclaration() {

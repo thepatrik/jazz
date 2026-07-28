@@ -45,7 +45,11 @@ typedef enum {
     OP_LOOP,
 
     // Functions
-    OP_CALL,  // operand: argument count
+    OP_CALL,           // operand: argument count
+    OP_CLOSURE,        // operand: function constant index, then 2*upvalueCount bytes
+    OP_GET_UPVALUE,    // operand: upvalue slot
+    OP_SET_UPVALUE,    // operand: upvalue slot
+    OP_CLOSE_UPVALUE,  // no operand; close top-of-stack into its upvalue
     OP_RETURN,
 } OpCode;
 

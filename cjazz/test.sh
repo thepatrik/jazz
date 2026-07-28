@@ -283,6 +283,40 @@ $'fn id(x) { return x; }\nprint id(true);' \
 "true"
 
 echo ""
+echo "=== Closures ==="
+check "counter closure" \
+$'fn makeCounter() {\n  let n = 0;\n  fn count() { n = n + 1; return n; }\n  return count;\n}\nlet c = makeCounter();\nprint c(); print c(); print c();' \
+$'1\n2\n3'
+
+check "closure captures parameter" \
+$'fn adder(x) { fn add(y) { return x + y; } return add; }\nlet add5 = adder(5);\nprint add5(3);\nprint add5(10);' \
+$'8\n15'
+
+check "independent closures don'\''t share state" \
+$'fn makeCounter() {\n  let n = 0;\n  fn count() { n = n + 1; return n; }\n  return count;\n}\nlet a = makeCounter(); let b = makeCounter();\nprint a(); print a(); print b();' \
+$'1\n2\n1'
+
+check "shared upvalue - two closures same var" \
+$'fn make() {\n  let n = 0;\n  fn inc() { n = n + 1; }\n  fn get() { return n; }\n  inc(); inc(); inc();\n  return get;\n}\nprint make()();' \
+"3"
+
+check "closure mutates captured var" \
+$'fn f() {\n  let x = 1;\n  fn set(v) { x = v; }\n  fn get() { return x; }\n  set(42);\n  return get;\n}\nprint f()();' \
+"42"
+
+check "nested closure (upvalue of upvalue)" \
+$'fn outer(x) {\n  fn middle(y) {\n    fn inner(z) { return x + y + z; }\n    return inner;\n  }\n  return middle;\n}\nprint outer(1)(2)(3);' \
+"6"
+
+check "closure over loop variable" \
+$'fn makeAdder(n) { fn add(x) { return n + x; } return add; }\nprint makeAdder(10)(1);\nprint makeAdder(20)(1);' \
+$'11\n21'
+
+check "returned closure survives enclosing scope" \
+$'fn f() { let x = 99; fn g() { return x; } return g; }\nlet g = f();\nprint g();' \
+"99"
+
+echo ""
 echo "=== Runtime errors ==="
 check_error "type error: bool + number"  "print true + 1;"   "Runtime error"
 check_error "division by zero"           "print 10 / 0;"     "Runtime error"

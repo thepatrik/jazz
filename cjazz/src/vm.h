@@ -9,7 +9,7 @@
 #define STACK_MAX (FRAMES_MAX * UINT8_COUNT)
 
 typedef struct {
-    ObjFunction* function;
+    ObjClosure* closure;
     uint8_t* ip;
     Value* slots;  // window into vm.stack at this frame's base
 } CallFrame;
@@ -20,7 +20,8 @@ typedef struct {
     Value stack[STACK_MAX];
     Value* stackTop;
     Table globals;
-    Obj* objects;  // linked list of all heap objects
+    Obj* objects;              // linked list of all heap objects
+    ObjUpvalue* openUpvalues;  // head of the open-upvalue chain
 } VM;
 
 typedef enum {
