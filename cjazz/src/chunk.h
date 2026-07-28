@@ -44,6 +44,8 @@ typedef enum {
     OP_JUMP_IF_FALSE,
     OP_LOOP,
 
+    // Functions
+    OP_CALL,  // operand: argument count
     OP_RETURN,
 } OpCode;
 

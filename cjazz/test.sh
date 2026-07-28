@@ -191,6 +191,44 @@ $'for (let i = 0; i < 3;) { print i; i = i + 1; }' \
 $'0\n1\n2'
 
 echo ""
+echo "=== Functions ==="
+check "basic call" \
+$'fn greet() { print 42; }\ngreet();' \
+"42"
+
+check "return value" \
+$'fn add(a, b) { return a + b; }\nprint add(3, 4);' \
+"7"
+
+check "implicit nil return" \
+$'fn nothing() {}\nprint nothing();' \
+"nil"
+
+check "multiple parameters" \
+$'fn mul(a, b) { return a * b; }\nprint mul(6, 7);' \
+"42"
+
+check "local variables in function" \
+$'fn f() { let x = 10; let y = 20; return x + y; }\nprint f();' \
+"30"
+
+check "call multiple times" \
+$'fn inc(n) { return n + 1; }\nprint inc(0);\nprint inc(5);\nprint inc(9);' \
+$'1\n6\n10'
+
+check "recursion" \
+$'fn fact(n) { if (n <= 1) return 1; return n * fact(n - 1); }\nprint fact(5);' \
+"120"
+
+check "function assigned to variable" \
+$'fn double(x) { return x * 2; }\nlet f = double;\nprint f(21);' \
+"42"
+
+check "function print value" \
+$'fn id(x) { return x; }\nprint id(true);' \
+"true"
+
+echo ""
 echo "=== Runtime errors ==="
 check_error "type error: bool + number"  "print true + 1;"   "Runtime error"
 check_error "division by zero"           "print 10 / 0;"     "Runtime error"

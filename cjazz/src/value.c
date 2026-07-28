@@ -4,6 +4,7 @@
 #include <stdlib.h>
 
 #include "memory.h"
+#include "object.h"
 
 void initValueArray(ValueArray* array) {
     array->values   = NULL;
@@ -44,6 +45,9 @@ void printValue(Value value) {
             break;
         case VAL_STRING:
             printf("%s", AS_STRING(value));
+            break;
+        case VAL_OBJ:
+            printObject(value);
             break;
     }
 }
