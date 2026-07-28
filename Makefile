@@ -3,4 +3,7 @@
 jazz:
 	cd gojazz && go run .
 
-.PHONY: jazz
+test-c:
+	cd cjazz && make test
+
+.PHONY: jazz test-c
