@@ -204,9 +204,10 @@ check "string in variable"    'let s = "jazz"; print s;'          "jazz"
 check "string as argument" \
 $'fn greet(name) { return "hello " + name; }\nprint greet("world");' \
 "hello world"
-check_error "add string + number" \
-$'print "x" + 1;' \
-"Runtime error"
+check "string + number coercion"   $'print "x" + 1;'    "x1"
+check "number + string coercion"   $'print 1 + "x";'    "1x"
+check "string + bool coercion"     $'print "v=" + true;' "v=true"
+check "string + nil coercion"      $'print "v=" + nil;'  "v=nil"
 
 echo ""
 echo "=== And / Or ==="
@@ -315,6 +316,23 @@ $'11\n21'
 check "returned closure survives enclosing scope" \
 $'fn f() { let x = 99; fn g() { return x; } return g; }\nlet g = f();\nprint g();' \
 "99"
+
+echo ""
+echo "=== Block comments ==="
+check "block comment ignored"      $'/* hello */ print 1;'                "1"
+check "block comment multiline"    $'/*\n  skip\n*/ print 2;'             "2"
+check "inline block comment"       $'print /* skip */ 3;'                 "3"
+check "block comment in expr"      $'print 1 /* + 999 */ + 1;'            "2"
+
+echo ""
+echo "=== Native: clock ==="
+check "clock returns number" \
+$'let t = clock(); print t > 0;' \
+"true"
+
+check "clock measures elapsed time" \
+$'let a = clock(); let b = clock(); print b >= a;' \
+"true"
 
 echo ""
 echo "=== Runtime errors ==="

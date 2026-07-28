@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/time.h>
 
 #include "common.h"
 #include "compiler.h"
@@ -18,10 +19,23 @@ static void resetStack() {
     vm.openUpvalues = NULL;
 }
 
+// ---- Natives ---------------------------------------------------------------
+
+static Value clockNative(int argCount, Value* args) {
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return NUMBER_VAL((double)(tv.tv_sec * 1000LL + tv.tv_usec / 1000));
+}
+
+static void defineNative(const char* name, NativeFn function) {
+    tableSet(&vm.globals, name, OBJ_VAL(newNative(function)));
+}
+
 void initVM() {
     resetStack();
     vm.objects = NULL;
     initTable(&vm.globals);
+    defineNative("clock", clockNative);
 }
 
 void freeVM() {
@@ -130,6 +144,22 @@ static void closeUpvalues(Value* last) {
     }
 }
 
+// ---- String coercion -------------------------------------------------------
+
+static ObjString* valueToString(Value value) {
+    if (IS_STRING(value)) return AS_STRING(value);
+    char buf[64];
+    if (IS_BOOL(value))
+        snprintf(buf, sizeof(buf), "%s", AS_BOOL(value) ? "true" : "false");
+    else if (IS_NIL(value))
+        snprintf(buf, sizeof(buf), "nil");
+    else if (IS_NUMBER(value))
+        snprintf(buf, sizeof(buf), "%g", AS_NUMBER(value));
+    else
+        snprintf(buf, sizeof(buf), "<obj>");
+    return newString(buf, (int)strlen(buf));
+}
+
 // ---- Main interpreter loop -------------------------------------------------
 
 static InterpretResult run() {
@@ -191,9 +221,9 @@ static InterpretResult run() {
 
             // --- Arithmetic ---
             case OP_ADD: {
-                if (IS_STRING(peek(0)) && IS_STRING(peek(1))) {
-                    ObjString* b = AS_STRING(pop());
-                    ObjString* a = AS_STRING(pop());
+                if (IS_STRING(peek(0)) || IS_STRING(peek(1))) {
+                    ObjString* b = valueToString(pop());
+                    ObjString* a = valueToString(pop());
                     int len      = a->length + b->length;
                     char* buf    = (char*)malloc(len + 1);
                     memcpy(buf, a->chars, a->length);
@@ -346,6 +376,13 @@ static InterpretResult run() {
             case OP_CALL: {
                 int argCount = READ_BYTE();
                 Value callee = peek(argCount);
+                if (IS_NATIVE(callee)) {
+                    NativeFn native = AS_NATIVE(callee)->function;
+                    Value result    = native(argCount, vm.stackTop - argCount);
+                    vm.stackTop -= argCount + 1;
+                    push(result);
+                    break;
+                }
                 if (!IS_CLOSURE(callee)) {
                     runtimeError("Can only call functions.");
                     return INTERPRET_RUNTIME_ERROR;

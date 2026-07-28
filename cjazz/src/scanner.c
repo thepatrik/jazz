@@ -89,6 +89,18 @@ static void skipWhitespace() {
             case '/':
                 if (peekNext() == '/') {
                     while (peek() != '\n' && !isAtEnd()) advance();
+                } else if (peekNext() == '*') {
+                    advance();
+                    advance();  // consume '/*'
+                    while (!isAtEnd()) {
+                        if (peek() == '*' && peekNext() == '/') {
+                            advance();
+                            advance();  // consume '*/'
+                            break;
+                        }
+                        if (peek() == '\n') scanner.line++;
+                        advance();
+                    }
                 } else {
                     return;
                 }

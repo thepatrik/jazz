@@ -46,6 +46,12 @@ ObjClosure* newClosure(ObjFunction* fn) {
     return closure;
 }
 
+ObjNative* newNative(NativeFn function) {
+    ObjNative* native  = (ObjNative*)allocObject(sizeof(ObjNative), OBJ_NATIVE);
+    native->function   = function;
+    return native;
+}
+
 ObjString* newString(const char* chars, int length) {
     ObjString* str = (ObjString*)allocObject(sizeof(ObjString), OBJ_STRING);
     str->length    = length;
@@ -57,6 +63,9 @@ ObjString* newString(const char* chars, int length) {
 
 void freeObject(Obj* obj) {
     switch (obj->type) {
+        case OBJ_NATIVE:
+            free(obj);
+            break;
         case OBJ_FUNCTION: {
             ObjFunction* fn = (ObjFunction*)obj;
             freeChunk(&fn->chunk);
@@ -102,6 +111,9 @@ void printObject(Value value) {
             }
             break;
         }
+        case OBJ_NATIVE:
+            printf("<native fn>");
+            break;
         case OBJ_UPVALUE:
             printf("<upvalue>");
             break;
