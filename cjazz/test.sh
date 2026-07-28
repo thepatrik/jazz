@@ -108,6 +108,44 @@ $'let a = 1;\nlet b = 2;\nprint a;\nprint b;\nprint a + b;' \
 $'1\n2\n3'
 
 echo ""
+echo "=== Local variables ==="
+check "local declaration + read" \
+$'{ let x = 42; print x; }' \
+"42"
+
+check "local is nil when uninitialized" \
+$'{ let x; print x; }' \
+"nil"
+
+check "local assignment" \
+$'{ let x = 1; x = 99; print x; }' \
+"99"
+
+check "local shadows global" \
+$'let x = 1;\n{ let x = 2; print x; }\nprint x;' \
+$'2\n1'
+
+check "multiple locals" \
+$'{ let a = 3; let b = 4; print a + b; }' \
+"7"
+
+check "nested scopes" \
+$'{ let a = 1; { let b = 2; print a + b; } }' \
+"3"
+
+check "local not visible after scope" \
+$'{ let x = 5; }\nprint x;' \
+""
+
+check_error "use variable in own initializer" \
+$'{ let x = x; }' \
+"own initializer"
+
+check_error "duplicate local in same scope" \
+$'{ let x = 1; let x = 2; }' \
+"Already a variable"
+
+echo ""
 echo "=== Runtime errors ==="
 check_error "type error: bool + number"  "print true + 1;"   "Runtime error"
 check_error "division by zero"           "print 10 / 0;"     "Runtime error"

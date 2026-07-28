@@ -30,7 +30,11 @@ typedef enum {
     OP_POP,
     OP_PRINT,
 
-    // Global variables
+    // Local variables (slot index operand)
+    OP_GET_LOCAL,
+    OP_SET_LOCAL,
+
+    // Global variables (constant index operand)
     OP_DEFINE_GLOBAL,
     OP_GET_GLOBAL,
     OP_SET_GLOBAL,
