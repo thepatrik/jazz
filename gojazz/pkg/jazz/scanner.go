@@ -127,6 +127,10 @@ func (scanner *Scanner) findToken() (*Token, error) {
 		return scanner.createToken(TokenTypeLeftBrace), nil
 	case '}':
 		return scanner.createToken(TokenTypeRightBrace), nil
+	case '[':
+		return scanner.createToken(TokenTypeLeftBracket), nil
+	case ']':
+		return scanner.createToken(TokenTypeRightBracket), nil
 	case ',':
 		return scanner.createToken(TokenTypeComma), nil
 	case '.':

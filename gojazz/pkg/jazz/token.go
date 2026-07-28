@@ -10,6 +10,8 @@ const (
 	TokenTypeRightParen
 	TokenTypeLeftBrace
 	TokenTypeRightBrace
+	TokenTypeLeftBracket
+	TokenTypeRightBracket
 	TokenTypeComma
 	TokenTypeDot
 	TokenTypeMinus
@@ -35,6 +37,8 @@ const (
 
 	//Keywords
 	TokenTypeAnd
+	TokenTypeBreak
+	TokenTypeContinue
 	TokenTypeElse
 	TokenTypeFalse
 	TokenTypeFunc
@@ -52,8 +56,10 @@ const (
 )
 
 var keywords = map[string]TokenType{
-	"and":    TokenTypeAnd,
-	"else":   TokenTypeElse,
+	"and":      TokenTypeAnd,
+	"break":    TokenTypeBreak,
+	"continue": TokenTypeContinue,
+	"else":     TokenTypeElse,
 	"false":  TokenTypeFalse,
 	"for":    TokenTypeFor,
 	"fn":     TokenTypeFunc,

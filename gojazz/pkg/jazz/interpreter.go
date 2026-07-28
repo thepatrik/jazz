@@ -65,6 +65,8 @@ func NewInterpreter(options ...InterpreterOpt) *Interpreter {
 	globalEnv := env
 
 	globalEnv.Define("clock", &Clock{})
+	globalEnv.Define("len", &LenNative{})
+	globalEnv.Define("push", &PushNative{})
 
 	return &Interpreter{cfg: cfg, env: env, globalEnv: globalEnv, locals: make(map[Expr]int)}
 }
@@ -96,14 +98,13 @@ func (i *Interpreter) VisitBlockStmt(stmt *BlockStmt) (interface{}, error) {
 func (i *Interpreter) executeBlock(stmts []Stmt, env *Env) (interface{}, error) {
 	prev := i.env
 	i.env = env
+	defer func() { i.env = prev }()
 	for _, stmt := range stmts {
 		_, err := i.Run(stmt)
 		if err != nil {
 			return nil, err
 		}
 	}
-
-	i.env = prev
 	return nil, nil
 }
 
@@ -176,24 +177,102 @@ func (i *Interpreter) VisitVarStmt(stmt *VarStmt) (interface{}, error) {
 	return nil, nil
 }
 
+func (i *Interpreter) VisitBreakStmt(_ *BreakStmt) (interface{}, error) {
+	return nil, &BreakError{}
+}
+
+func (i *Interpreter) VisitContinueStmt(_ *ContinueStmt) (interface{}, error) {
+	return nil, &ContinueError{}
+}
+
 func (i *Interpreter) VisitWhileStmt(stmt *WhileStmt) (interface{}, error) {
 	for {
 		val, err := i.eval(stmt.Condition)
 		if err != nil {
 			return nil, err
 		}
-
 		if !isTruthy(val) {
 			break
 		}
-
 		_, err = i.Run(stmt.Body)
+		if err != nil {
+			if _, ok := err.(*BreakError); ok {
+				break
+			}
+			if _, ok := err.(*ContinueError); ok {
+				if stmt.Increment != nil {
+					if _, err := i.eval(stmt.Increment); err != nil {
+						return nil, err
+					}
+				}
+				continue
+			}
+			return nil, err
+		}
+		if stmt.Increment != nil {
+			if _, err := i.eval(stmt.Increment); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return nil, nil
+}
+
+func (i *Interpreter) VisitArrayExpr(expr *ArrayExpr) (interface{}, error) {
+	elements := make([]interface{}, 0, len(expr.Elements))
+	for _, el := range expr.Elements {
+		val, err := i.eval(el)
 		if err != nil {
 			return nil, err
 		}
+		elements = append(elements, val)
 	}
+	return NewJazzArray(elements), nil
+}
 
-	return nil, nil
+func (i *Interpreter) VisitIndexGetExpr(expr *IndexGetExpr) (interface{}, error) {
+	obj, err := i.eval(expr.Object)
+	if err != nil {
+		return nil, err
+	}
+	arr, ok := obj.(*JazzArray)
+	if !ok {
+		panic(&InterpreterError{Message: "Can only index arrays."})
+	}
+	idxVal, err := i.eval(expr.Index)
+	if err != nil {
+		return nil, err
+	}
+	idx := int(idxVal.(float64))
+	if idx < 0 || idx >= len(arr.Elements) {
+		panic(&InterpreterError{Message: fmt.Sprintf("Index %d out of bounds (length %d).", idx, len(arr.Elements))})
+	}
+	return arr.Elements[idx], nil
+}
+
+func (i *Interpreter) VisitIndexSetExpr(expr *IndexSetExpr) (interface{}, error) {
+	obj, err := i.eval(expr.Object)
+	if err != nil {
+		return nil, err
+	}
+	arr, ok := obj.(*JazzArray)
+	if !ok {
+		panic(&InterpreterError{Message: "Can only index arrays."})
+	}
+	idxVal, err := i.eval(expr.Index)
+	if err != nil {
+		return nil, err
+	}
+	idx := int(idxVal.(float64))
+	if idx < 0 || idx >= len(arr.Elements) {
+		panic(&InterpreterError{Message: fmt.Sprintf("Index %d out of bounds (length %d).", idx, len(arr.Elements))})
+	}
+	val, err := i.eval(expr.Val)
+	if err != nil {
+		return nil, err
+	}
+	arr.Elements[idx] = val
+	return val, nil
 }
 
 func (i *Interpreter) VisitAssignExpr(expr *AssignExpr) (interface{}, error) {

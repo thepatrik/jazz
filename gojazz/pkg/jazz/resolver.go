@@ -23,9 +23,10 @@ func (err *ResolverError) Error() string {
 }
 
 type Resolver struct {
-	Interpreter  *Interpreter
-	Scopes       *stack.MapStack
-	CurrFuncType FuncType
+	Interpreter   *Interpreter
+	Scopes        *stack.MapStack
+	CurrFuncType  FuncType
+	CurrLoopDepth int
 }
 
 func NewResolver(interpreter *Interpreter) *Resolver {
@@ -53,8 +54,13 @@ func (resolver *Resolver) resolveExpr(expr Expr) error {
 
 func (resolver *Resolver) resolveFunc(stmt *FuncStmt, funcType FuncType) error {
 	encFunc := resolver.CurrFuncType
+	encLoopDepth := resolver.CurrLoopDepth
 	resolver.CurrFuncType = funcType
-	defer func() { resolver.CurrFuncType = encFunc }()
+	resolver.CurrLoopDepth = 0
+	defer func() {
+		resolver.CurrFuncType = encFunc
+		resolver.CurrLoopDepth = encLoopDepth
+	}()
 
 	resolver.beginScope()
 	for _, param := range stmt.Params {
@@ -288,12 +294,59 @@ func (resolver *Resolver) VisitVarStmt(stmt *VarStmt) (interface{}, error) {
 	return nil, err
 }
 
+func (resolver *Resolver) VisitBreakStmt(stmt *BreakStmt) (interface{}, error) {
+	if resolver.CurrLoopDepth == 0 {
+		return nil, &ResolverError{Token: stmt.Keyword, Message: "'break' outside of loop"}
+	}
+	return nil, nil
+}
+
+func (resolver *Resolver) VisitContinueStmt(stmt *ContinueStmt) (interface{}, error) {
+	if resolver.CurrLoopDepth == 0 {
+		return nil, &ResolverError{Token: stmt.Keyword, Message: "'continue' outside of loop"}
+	}
+	return nil, nil
+}
+
 func (resolver *Resolver) VisitWhileStmt(stmt *WhileStmt) (interface{}, error) {
+	resolver.CurrLoopDepth++
+	defer func() { resolver.CurrLoopDepth-- }()
+
 	err := resolver.resolveExpr(stmt.Condition)
 	if err != nil {
 		return nil, err
 	}
-
+	if stmt.Increment != nil {
+		if err := resolver.resolveExpr(stmt.Increment); err != nil {
+			return nil, err
+		}
+	}
 	err = resolver.resolveStmt(stmt.Body)
 	return nil, err
+}
+
+func (resolver *Resolver) VisitArrayExpr(expr *ArrayExpr) (interface{}, error) {
+	for _, el := range expr.Elements {
+		if err := resolver.resolveExpr(el); err != nil {
+			return nil, err
+		}
+	}
+	return nil, nil
+}
+
+func (resolver *Resolver) VisitIndexGetExpr(expr *IndexGetExpr) (interface{}, error) {
+	if err := resolver.resolveExpr(expr.Object); err != nil {
+		return nil, err
+	}
+	return nil, resolver.resolveExpr(expr.Index)
+}
+
+func (resolver *Resolver) VisitIndexSetExpr(expr *IndexSetExpr) (interface{}, error) {
+	if err := resolver.resolveExpr(expr.Object); err != nil {
+		return nil, err
+	}
+	if err := resolver.resolveExpr(expr.Index); err != nil {
+		return nil, err
+	}
+	return nil, resolver.resolveExpr(expr.Val)
 }

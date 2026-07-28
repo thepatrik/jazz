@@ -2,6 +2,8 @@ package jazz
 
 type StmtVisitor interface {
 	VisitBlockStmt(stmt *BlockStmt) (interface{}, error)
+	VisitBreakStmt(stmt *BreakStmt) (interface{}, error)
+	VisitContinueStmt(stmt *ContinueStmt) (interface{}, error)
 	VisitExprStmt(stmt *ExprStmt) (interface{}, error)
 	VisitFuncStmt(stmt *FuncStmt) (interface{}, error)
 	VisitIfStmt(stmt *IfStmt) (interface{}, error)
@@ -50,13 +52,30 @@ type VarStmt struct {
 	Initializer Expr
 }
 
+type BreakStmt struct {
+	Keyword *Token
+}
+
+type ContinueStmt struct {
+	Keyword *Token
+}
+
 type WhileStmt struct {
 	Condition Expr
 	Body      Stmt
+	Increment Expr // non-nil for desugared for-loops
 }
 
 func (stmt *BlockStmt) Accept(v StmtVisitor) (interface{}, error) {
 	return v.VisitBlockStmt(stmt)
+}
+
+func (stmt *BreakStmt) Accept(v StmtVisitor) (interface{}, error) {
+	return v.VisitBreakStmt(stmt)
+}
+
+func (stmt *ContinueStmt) Accept(v StmtVisitor) (interface{}, error) {
+	return v.VisitContinueStmt(stmt)
 }
 
 func (stmt *ExprStmt) Accept(v StmtVisitor) (interface{}, error) {

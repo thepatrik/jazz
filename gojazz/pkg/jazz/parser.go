@@ -57,6 +57,12 @@ func (p *Parser) declaration() (Stmt, error) {
 }
 
 func (p *Parser) stmt() (Stmt, error) {
+	if p.match(TokenTypeBreak) {
+		return &BreakStmt{Keyword: p.previous()}, p.expectSemicolon("break")
+	}
+	if p.match(TokenTypeContinue) {
+		return &ContinueStmt{Keyword: p.previous()}, p.expectSemicolon("continue")
+	}
 	if p.match(TokenTypeFor) {
 		return p.forStmt()
 	}
@@ -85,6 +91,11 @@ func (p *Parser) stmt() (Stmt, error) {
 	}
 
 	return p.expressionStmt()
+}
+
+func (p *Parser) expectSemicolon(keyword string) error {
+	_, err := p.consume(TokenTypeSemicolon, fmt.Sprintf("expected ';' after '%s'.", keyword))
+	return err
 }
 
 func (p *Parser) block() ([]Stmt, error) {
@@ -202,21 +213,17 @@ func (p *Parser) forStmt() (Stmt, error) {
 		return nil, err
 	}
 
-	if increment != nil {
-		body = &BlockStmt{Stmts: []Stmt{body, &ExprStmt{Expr: increment}}}
-	}
-
 	if condition == nil {
 		condition = &LiteralExpr{Val: true}
 	}
 
-	body = &WhileStmt{Condition: condition, Body: body}
+	var whileBody Stmt = &WhileStmt{Condition: condition, Body: body, Increment: increment}
 
 	if initializer != nil {
-		body = &BlockStmt{Stmts: []Stmt{initializer, body}}
+		whileBody = &BlockStmt{Stmts: []Stmt{initializer, whileBody}}
 	}
 
-	return body, nil
+	return whileBody, nil
 }
 
 func (p *Parser) call() (Expr, error) {
@@ -231,6 +238,17 @@ func (p *Parser) call() (Expr, error) {
 			if err != nil {
 				return nil, err
 			}
+		} else if p.match(TokenTypeLeftBracket) {
+			bracket := p.previous()
+			index, err := p.expression()
+			if err != nil {
+				return nil, err
+			}
+			_, err = p.consume(TokenTypeRightBracket, "expected ']' after index.")
+			if err != nil {
+				return nil, err
+			}
+			expr = &IndexGetExpr{Object: expr, Index: index, Bracket: bracket}
 		} else {
 			break
 		}
@@ -388,6 +406,10 @@ func (p *Parser) sync() {
 			return
 		}
 		switch p.peek().TokenType {
+		case TokenTypeBreak:
+			fallthrough
+		case TokenTypeContinue:
+			fallthrough
 		case TokenTypeFor:
 			fallthrough
 		case TokenTypeFunc:
@@ -463,6 +485,8 @@ func (p *Parser) assignment() (Expr, error) {
 		switch t := expr.(type) {
 		case *VarExpr:
 			return &AssignExpr{Name: t.Name, Val: val}, nil
+		case *IndexGetExpr:
+			return &IndexSetExpr{Object: t.Object, Index: t.Index, Val: val, Bracket: t.Bracket}, nil
 		}
 
 		eq := p.previous()
@@ -611,6 +635,29 @@ func (p *Parser) consume(t TokenType, message string) (*Token, error) {
 }
 
 func (p *Parser) primary() (Expr, error) {
+	if p.match(TokenTypeLeftBracket) {
+		bracket := p.previous()
+		elements := []Expr{}
+		if !p.check(TokenTypeRightBracket) {
+			elem, err := p.expression()
+			if err != nil {
+				return nil, err
+			}
+			elements = append(elements, elem)
+			for p.match(TokenTypeComma) {
+				elem, err := p.expression()
+				if err != nil {
+					return nil, err
+				}
+				elements = append(elements, elem)
+			}
+		}
+		_, err := p.consume(TokenTypeRightBracket, "expected ']' after array elements.")
+		if err != nil {
+			return nil, err
+		}
+		return &ArrayExpr{Elements: elements, Bracket: bracket}, nil
+	}
 	if p.match(TokenTypeFalse) {
 		return &LiteralExpr{Val: false}, nil
 	}

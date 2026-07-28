@@ -1,10 +1,13 @@
 package jazz
 
 type ExprVisitor interface {
+	VisitArrayExpr(expr *ArrayExpr) (interface{}, error)
 	VisitAssignExpr(expr *AssignExpr) (interface{}, error)
 	VisitBinExpr(expr *BinExpr) (interface{}, error)
 	VisitCallExpr(expr *CallExpr) (interface{}, error)
 	VisitGroupingExpr(expr *GroupingExpr) (interface{}, error)
+	VisitIndexGetExpr(expr *IndexGetExpr) (interface{}, error)
+	VisitIndexSetExpr(expr *IndexSetExpr) (interface{}, error)
 	VisitLiteralExpr(expr *LiteralExpr) (interface{}, error)
 	VisitLogicalExpr(expr *LogicalExpr) (interface{}, error)
 	VisitUnaryExpr(expr *UnaryExpr) (interface{}, error)
@@ -13,6 +16,11 @@ type ExprVisitor interface {
 
 type Expr interface {
 	Accept(v ExprVisitor) (interface{}, error)
+}
+
+type ArrayExpr struct {
+	Elements []Expr
+	Bracket  *Token
 }
 
 type AssignExpr struct {
@@ -52,8 +60,25 @@ type UnaryExpr struct {
 	Operator *Token
 }
 
+type IndexGetExpr struct {
+	Object  Expr
+	Index   Expr
+	Bracket *Token
+}
+
+type IndexSetExpr struct {
+	Object  Expr
+	Index   Expr
+	Val     Expr
+	Bracket *Token
+}
+
 type VarExpr struct {
 	Name *Token
+}
+
+func (expr *ArrayExpr) Accept(v ExprVisitor) (interface{}, error) {
+	return v.VisitArrayExpr(expr)
 }
 
 func (expr *AssignExpr) Accept(v ExprVisitor) (interface{}, error) {
@@ -82,6 +107,14 @@ func (expr *LogicalExpr) Accept(v ExprVisitor) (interface{}, error) {
 
 func (expr *UnaryExpr) Accept(v ExprVisitor) (interface{}, error) {
 	return v.VisitUnaryExpr(expr)
+}
+
+func (expr *IndexGetExpr) Accept(v ExprVisitor) (interface{}, error) {
+	return v.VisitIndexGetExpr(expr)
+}
+
+func (expr *IndexSetExpr) Accept(v ExprVisitor) (interface{}, error) {
+	return v.VisitIndexSetExpr(expr)
 }
 
 func (expr *VarExpr) Accept(v ExprVisitor) (interface{}, error) {
