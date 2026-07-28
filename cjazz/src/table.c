@@ -1,8 +1,9 @@
+#include "table.h"
+
 #include <stdlib.h>
 #include <string.h>
 
 #include "memory.h"
-#include "table.h"
 
 #define TABLE_MAX_LOAD 0.75
 
@@ -32,7 +33,7 @@ void freeTable(Table* table) {
 }
 
 static Entry* findEntry(Entry* entries, int capacity, const char* key) {
-    uint32_t index = hashString(key) % (uint32_t)capacity;
+    uint32_t index   = hashString(key) % (uint32_t)capacity;
     Entry* tombstone = NULL;
     for (;;) {
         Entry* entry = &entries[index];
@@ -40,7 +41,8 @@ static Entry* findEntry(Entry* entries, int capacity, const char* key) {
             if (IS_NIL(entry->value)) {
                 return tombstone != NULL ? tombstone : entry;
             }
-            if (tombstone == NULL) tombstone = entry;
+            if (tombstone == NULL)
+                tombstone = entry;
         } else if (strcmp(entry->key, key) == 0) {
             return entry;
         }
@@ -58,10 +60,11 @@ static void adjustCapacity(Table* table, int capacity) {
     table->count = 0;
     for (int i = 0; i < table->capacity; i++) {
         Entry* entry = &table->entries[i];
-        if (entry->key == NULL) continue;
-        Entry* dest  = findEntry(entries, capacity, entry->key);
-        dest->key    = entry->key;
-        dest->value  = entry->value;
+        if (entry->key == NULL)
+            continue;
+        Entry* dest = findEntry(entries, capacity, entry->key);
+        dest->key   = entry->key;
+        dest->value = entry->value;
         table->count++;
     }
 
@@ -71,9 +74,11 @@ static void adjustCapacity(Table* table, int capacity) {
 }
 
 bool tableGet(Table* table, const char* key, Value* value) {
-    if (table->count == 0) return false;
+    if (table->count == 0)
+        return false;
     Entry* entry = findEntry(table->entries, table->capacity, key);
-    if (entry->key == NULL) return false;
+    if (entry->key == NULL)
+        return false;
     *value = entry->value;
     return true;
 }
@@ -84,16 +89,20 @@ bool tableSet(Table* table, const char* key, Value value) {
     }
     Entry* entry = findEntry(table->entries, table->capacity, key);
     bool isNew   = (entry->key == NULL);
-    if (isNew && IS_NIL(entry->value)) table->count++;
-    if (isNew) entry->key = strdup(key);
+    if (isNew && IS_NIL(entry->value))
+        table->count++;
+    if (isNew)
+        entry->key = strdup(key);
     entry->value = value;
     return isNew;
 }
 
 bool tableDelete(Table* table, const char* key) {
-    if (table->count == 0) return false;
+    if (table->count == 0)
+        return false;
     Entry* entry = findEntry(table->entries, table->capacity, key);
-    if (entry->key == NULL) return false;
+    if (entry->key == NULL)
+        return false;
     free(entry->key);
     entry->key   = NULL;
     entry->value = BOOL_VAL(true);  // tombstone

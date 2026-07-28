@@ -8,11 +8,11 @@
 #define STACK_MAX 256
 
 typedef struct {
-    Chunk*   chunk;
+    Chunk* chunk;
     uint8_t* ip;
-    Value    stack[STACK_MAX];
-    Value*   stackTop;
-    Table    globals;
+    Value stack[STACK_MAX];
+    Value* stackTop;
+    Table globals;
 } VM;
 
 typedef enum {

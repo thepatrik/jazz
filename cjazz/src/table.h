@@ -5,13 +5,13 @@
 #include "value.h"
 
 typedef struct {
-    char*  key;
-    Value  value;
+    char* key;
+    Value value;
 } Entry;
 
 typedef struct {
-    int    count;
-    int    capacity;
+    int count;
+    int capacity;
     Entry* entries;
 } Table;
 

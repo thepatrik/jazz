@@ -11,7 +11,7 @@ EXE		:= $(BIN)/main.exe
 CFLAGS	:= -I$(INCLUDE)
 LDLIBS	:= -lm
 
-.PHONY: all run test clean
+.PHONY: all run test format clean
 
 all: $(EXE)
 
@@ -29,6 +29,9 @@ run: $(EXE)
 
 test: $(EXE)
 	bash test.sh
+
+format:
+	clang-format -i $(SRC)/*.c $(SRC)/*.h
 
 clean:
 	$(RMDIR) $(OBJ) $(BIN)
