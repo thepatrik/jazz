@@ -146,6 +146,51 @@ $'{ let x = 1; let x = 2; }' \
 "Already a variable"
 
 echo ""
+echo "=== If / else ==="
+check "if true"  $'if (true) print 1;'              "1"
+check "if false" $'if (false) print 1;'             ""
+check "if else true"  $'if (true) print 1; else print 2;'  "1"
+check "if else false" $'if (false) print 1; else print 2;' "2"
+check "if condition expression" \
+$'let x = 5;\nif (x > 3) print 1; else print 0;' \
+"1"
+check "nested if" \
+$'if (true) { if (false) print 1; else print 2; }' \
+"2"
+
+echo ""
+echo "=== While ==="
+check "while basic" \
+$'let i = 0;\nwhile (i < 3) { print i; i = i + 1; }' \
+$'0\n1\n2'
+
+check "while false body skipped" \
+$'while (false) print 1;' \
+""
+
+check "while countdown" \
+$'let n = 3;\nwhile (n > 0) { n = n - 1; }\nprint n;' \
+"0"
+
+echo ""
+echo "=== For ==="
+check "for basic" \
+$'for (let i = 0; i < 3; i = i + 1) print i;' \
+$'0\n1\n2'
+
+check "for sum" \
+$'let s = 0;\nfor (let i = 1; i <= 4; i = i + 1) s = s + i;\nprint s;' \
+"10"
+
+check "for no initializer" \
+$'let i = 0;\nfor (; i < 2; i = i + 1) print i;' \
+$'0\n1'
+
+check "for no increment" \
+$'for (let i = 0; i < 3;) { print i; i = i + 1; }' \
+$'0\n1\n2'
+
+echo ""
 echo "=== Runtime errors ==="
 check_error "type error: bool + number"  "print true + 1;"   "Runtime error"
 check_error "division by zero"           "print 10 / 0;"     "Runtime error"

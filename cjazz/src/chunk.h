@@ -39,6 +39,11 @@ typedef enum {
     OP_GET_GLOBAL,
     OP_SET_GLOBAL,
 
+    // Control flow (16-bit offset operand)
+    OP_JUMP,
+    OP_JUMP_IF_FALSE,
+    OP_LOOP,
+
     OP_RETURN,
 } OpCode;
 
