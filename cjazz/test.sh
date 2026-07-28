@@ -191,6 +191,42 @@ $'for (let i = 0; i < 3;) { print i; i = i + 1; }' \
 $'0\n1\n2'
 
 echo ""
+echo "=== And / Or ==="
+check "true and true"   "print true and true;"    "true"
+check "true and false"  "print true and false;"   "false"
+check "false and true"  "print false and true;"   "false"
+check "false and false" "print false and false;"  "false"
+
+check "true or true"    "print true or true;"     "true"
+check "true or false"   "print true or false;"    "true"
+check "false or true"   "print false or true;"    "true"
+check "false or false"  "print false or false;"   "false"
+
+check "and short-circuits" \
+$'let x = 0;\nfalse and (x = 1);\nprint x;' \
+"0"
+
+check "or short-circuits" \
+$'let x = 0;\ntrue or (x = 1);\nprint x;' \
+"0"
+
+check "and returns left when falsy" \
+$'print nil and 2;' \
+"nil"
+
+check "or returns left when truthy" \
+$'print 1 or 2;' \
+"1"
+
+check "chained and" \
+$'print true and true and true;' \
+"true"
+
+check "chained or" \
+$'print false or false or true;' \
+"true"
+
+echo ""
 echo "=== Functions ==="
 check "basic call" \
 $'fn greet() { print 42; }\ngreet();' \

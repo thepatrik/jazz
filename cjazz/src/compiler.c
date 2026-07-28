@@ -426,6 +426,28 @@ static void variable(bool canAssign) {
     namedVariable(parser.previous, canAssign);
 }
 
+static void and_(bool canAssign) {
+    (void)canAssign;
+    // Left operand is already on the stack.
+    // If falsy, short-circuit: leave left value as result.
+    int endJump = emitJump(OP_JUMP_IF_FALSE);
+    emitByte(OP_POP);  // discard truthy left; right becomes result
+    parsePrecedence(PREC_AND);
+    patchJump(endJump);
+}
+
+static void or_(bool canAssign) {
+    (void)canAssign;
+    // Left operand is already on the stack.
+    // If falsy, fall through to evaluate right.
+    int elseJump = emitJump(OP_JUMP_IF_FALSE);
+    int endJump  = emitJump(OP_JUMP);  // left is truthy: skip right
+    patchJump(elseJump);
+    emitByte(OP_POP);                  // discard falsy left; right becomes result
+    parsePrecedence(PREC_OR);
+    patchJump(endJump);
+}
+
 ParseRule rules[] = {
     [TOKEN_LEFT_PAREN]    = {grouping, call, PREC_CALL},
     [TOKEN_RIGHT_PAREN]   = {NULL, NULL, PREC_NONE},
@@ -449,14 +471,14 @@ ParseRule rules[] = {
     [TOKEN_IDENTIFIER]    = {variable, NULL, PREC_NONE},
     [TOKEN_STRING]        = {NULL, NULL, PREC_NONE},
     [TOKEN_NUMBER]        = {number, NULL, PREC_NONE},
-    [TOKEN_AND]           = {NULL, NULL, PREC_NONE},
+    [TOKEN_AND]           = {NULL, and_, PREC_AND},
     [TOKEN_ELSE]          = {NULL, NULL, PREC_NONE},
     [TOKEN_FALSE]         = {literal, NULL, PREC_NONE},
     [TOKEN_FOR]           = {NULL, NULL, PREC_NONE},
     [TOKEN_FN]            = {NULL, NULL, PREC_NONE},
     [TOKEN_IF]            = {NULL, NULL, PREC_NONE},
     [TOKEN_NIL]           = {literal, NULL, PREC_NONE},
-    [TOKEN_OR]            = {NULL, NULL, PREC_NONE},
+    [TOKEN_OR]            = {NULL, or_, PREC_OR},
     [TOKEN_PRINT]         = {NULL, NULL, PREC_NONE},
     [TOKEN_RETURN]        = {NULL, NULL, PREC_NONE},
     [TOKEN_TRUE]          = {literal, NULL, PREC_NONE},
