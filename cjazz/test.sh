@@ -191,6 +191,24 @@ $'for (let i = 0; i < 3;) { print i; i = i + 1; }' \
 $'0\n1\n2'
 
 echo ""
+echo "=== Strings ==="
+check "print string"          'print "hello";'                    "hello"
+check "empty string"          'print "";'                          ""
+check "concatenation"         'print "hello" + " world";'         "hello world"
+check "concat with variable"  'let s = "foo"; print s + "bar";'   "foobar"
+check "multi concat"          'print "a" + "b" + "c";'            "abc"
+check "string equality"       'print "abc" == "abc";'             "true"
+check "string inequality"     'print "abc" == "xyz";'             "false"
+check "string != operator"    'print "a" != "b";'                 "true"
+check "string in variable"    'let s = "jazz"; print s;'          "jazz"
+check "string as argument" \
+$'fn greet(name) { return "hello " + name; }\nprint greet("world");' \
+"hello world"
+check_error "add string + number" \
+$'print "x" + 1;' \
+"Runtime error"
+
+echo ""
 echo "=== And / Or ==="
 check "true and true"   "print true and true;"    "true"
 check "true and false"  "print true and false;"   "false"

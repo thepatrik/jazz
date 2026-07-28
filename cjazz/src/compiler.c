@@ -381,6 +381,14 @@ static void number(bool canAssign) {
     emitConstant(NUMBER_VAL(strtod(parser.previous.start, NULL)));
 }
 
+static void string(bool canAssign) {
+    (void)canAssign;
+    // Token includes surrounding quotes; strip them.
+    const char* chars = parser.previous.start + 1;
+    int length        = parser.previous.length - 2;
+    emitConstant(OBJ_VAL(newString(chars, length)));
+}
+
 static void unary(bool canAssign) {
     (void)canAssign;
     TokenType op = parser.previous.type;
@@ -399,7 +407,7 @@ static void unary(bool canAssign) {
 
 static uint8_t identifierConstant(Token* name) {
     char* str = strndup(name->start, name->length);
-    return makeConstant(STRING_VAL(str));
+    return makeConstant(IDENT_VAL(str));
 }
 
 static void namedVariable(Token name, bool canAssign) {
@@ -469,7 +477,7 @@ ParseRule rules[] = {
     [TOKEN_LESS]          = {NULL, binary, PREC_COMPARISON},
     [TOKEN_LESS_EQUAL]    = {NULL, binary, PREC_COMPARISON},
     [TOKEN_IDENTIFIER]    = {variable, NULL, PREC_NONE},
-    [TOKEN_STRING]        = {NULL, NULL, PREC_NONE},
+    [TOKEN_STRING]        = {string, NULL, PREC_NONE},
     [TOKEN_NUMBER]        = {number, NULL, PREC_NONE},
     [TOKEN_AND]           = {NULL, and_, PREC_AND},
     [TOKEN_ELSE]          = {NULL, NULL, PREC_NONE},

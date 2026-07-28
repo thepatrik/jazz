@@ -24,8 +24,8 @@ void writeValueArray(ValueArray* array, Value value) {
 
 void freeValueArray(ValueArray* array) {
     for (int i = 0; i < array->count; i++) {
-        if (IS_STRING(array->values[i])) {
-            free(AS_STRING(array->values[i]));
+        if (IS_IDENT(array->values[i])) {
+            free(AS_IDENT(array->values[i]));
         }
     }
     FREE_ARRAY(Value, array->values, array->capacity);
@@ -43,8 +43,8 @@ void printValue(Value value) {
         case VAL_NUMBER:
             printf("%g", AS_NUMBER(value));
             break;
-        case VAL_STRING:
-            printf("%s", AS_STRING(value));
+        case VAL_IDENT:
+            printf("<ident:%s>", AS_IDENT(value));
             break;
         case VAL_OBJ:
             printObject(value);

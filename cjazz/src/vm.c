@@ -2,6 +2,8 @@
 
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "common.h"
 #include "compiler.h"
@@ -56,8 +58,16 @@ static bool valuesEqual(Value a, Value b) {
             return true;
         case VAL_NUMBER:
             return AS_NUMBER(a) == AS_NUMBER(b);
-        case VAL_STRING:
-            return false;  // identity only; no interning yet
+        case VAL_OBJ: {
+            if (OBJ_TYPE(a) != OBJ_TYPE(b))
+                return false;
+            if (IS_STRING(a)) {
+                ObjString* sa = AS_STRING(a);
+                ObjString* sb = AS_STRING(b);
+                return sa->length == sb->length && memcmp(sa->chars, sb->chars, sa->length) == 0;
+            }
+            return AS_OBJ(a) == AS_OBJ(b);
+        }
         default:
             return false;
     }
@@ -145,9 +155,27 @@ static InterpretResult run() {
                 break;
 
             // --- Arithmetic ---
-            case OP_ADD:
-                BINARY_OP(NUMBER_VAL, +);
+            case OP_ADD: {
+                if (IS_STRING(peek(0)) && IS_STRING(peek(1))) {
+                    ObjString* b = AS_STRING(pop());
+                    ObjString* a = AS_STRING(pop());
+                    int len      = a->length + b->length;
+                    char* buf    = (char*)malloc(len + 1);
+                    memcpy(buf, a->chars, a->length);
+                    memcpy(buf + a->length, b->chars, b->length);
+                    buf[len] = '\0';
+                    push(OBJ_VAL(newString(buf, len)));
+                    free(buf);
+                } else if (IS_NUMBER(peek(0)) && IS_NUMBER(peek(1))) {
+                    double b = AS_NUMBER(pop());
+                    double a = AS_NUMBER(pop());
+                    push(NUMBER_VAL(a + b));
+                } else {
+                    runtimeError("Operands must be two numbers or two strings.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
                 break;
+            }
             case OP_SUBTRACT:
                 BINARY_OP(NUMBER_VAL, -);
                 break;
@@ -223,13 +251,13 @@ static InterpretResult run() {
 
             // --- Global variables ---
             case OP_DEFINE_GLOBAL: {
-                const char* name = AS_STRING(READ_CONSTANT());
+                const char* name = AS_IDENT(READ_CONSTANT());
                 tableSet(&vm.globals, name, peek(0));
                 pop();
                 break;
             }
             case OP_GET_GLOBAL: {
-                const char* name = AS_STRING(READ_CONSTANT());
+                const char* name = AS_IDENT(READ_CONSTANT());
                 Value value;
                 if (!tableGet(&vm.globals, name, &value)) {
                     runtimeError("Undefined variable '%s'.", name);
@@ -239,7 +267,7 @@ static InterpretResult run() {
                 break;
             }
             case OP_SET_GLOBAL: {
-                const char* name = AS_STRING(READ_CONSTANT());
+                const char* name = AS_IDENT(READ_CONSTANT());
                 if (tableSet(&vm.globals, name, peek(0))) {
                     tableDelete(&vm.globals, name);
                     runtimeError("Undefined variable '%s'.", name);
@@ -297,10 +325,6 @@ InterpretResult interpret(const char* source) {
     ObjFunction* fn = compile(source);
     if (fn == NULL)
         return INTERPRET_COMPILE_ERROR;
-
-    // Track the script function in the object list so freeVM cleans it up.
-    fn->obj.next = vm.objects;
-    vm.objects   = &fn->obj;
 
     push(OBJ_VAL(fn));
     CallFrame* frame = &vm.frames[vm.frameCount++];
