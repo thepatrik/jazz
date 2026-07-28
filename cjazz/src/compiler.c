@@ -497,6 +497,32 @@ static void and_(bool canAssign) {
     patchJump(endJump);
 }
 
+static void array(bool canAssign) {
+    (void)canAssign;
+    int count = 0;
+    if (!check(TOKEN_RIGHT_BRACKET)) {
+        do {
+            expression();
+            if (count == 255)
+                error("Cannot have more than 255 elements in array literal.");
+            count++;
+        } while (match(TOKEN_COMMA));
+    }
+    consume(TOKEN_RIGHT_BRACKET, "Expected ']' after array elements.");
+    emitBytes(OP_ARRAY, (uint8_t)count);
+}
+
+static void index_(bool canAssign) {
+    expression();
+    consume(TOKEN_RIGHT_BRACKET, "Expected ']' after index.");
+    if (canAssign && match(TOKEN_EQUAL)) {
+        expression();
+        emitByte(OP_SET_INDEX);
+    } else {
+        emitByte(OP_GET_INDEX);
+    }
+}
+
 static void or_(bool canAssign) {
     (void)canAssign;
     // Left operand is already on the stack.
@@ -514,6 +540,8 @@ ParseRule rules[] = {
     [TOKEN_RIGHT_PAREN]   = {NULL, NULL, PREC_NONE},
     [TOKEN_LEFT_BRACE]    = {NULL, NULL, PREC_NONE},
     [TOKEN_RIGHT_BRACE]   = {NULL, NULL, PREC_NONE},
+    [TOKEN_LEFT_BRACKET]  = {array, index_, PREC_CALL},
+    [TOKEN_RIGHT_BRACKET] = {NULL, NULL, PREC_NONE},
     [TOKEN_COMMA]         = {NULL, NULL, PREC_NONE},
     [TOKEN_DOT]           = {NULL, NULL, PREC_NONE},
     [TOKEN_MINUS]         = {unary, binary, PREC_TERM},

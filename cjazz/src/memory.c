@@ -59,6 +59,9 @@ static void markArray(ValueArray* array) {
 
 static void blackenObject(Obj* obj) {
     switch (obj->type) {
+        case OBJ_ARRAY:
+            markArray(&((ObjArray*)obj)->elements);
+            break;
         case OBJ_UPVALUE:
             // Open upvalue: location points into the stack (already a root).
             // Closed upvalue: 'closed' holds the captured value — mark it.

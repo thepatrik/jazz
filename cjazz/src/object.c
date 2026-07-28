@@ -19,6 +19,12 @@ static Obj* allocObject(size_t size, ObjType type) {
     return obj;
 }
 
+ObjArray* newArray() {
+    ObjArray* array = (ObjArray*)allocObject(sizeof(ObjArray), OBJ_ARRAY);
+    initValueArray(&array->elements);
+    return array;
+}
+
 ObjFunction* newFunction() {
     ObjFunction* fn  = (ObjFunction*)allocObject(sizeof(ObjFunction), OBJ_FUNCTION);
     fn->arity        = 0;
@@ -68,6 +74,12 @@ ObjString* newString(const char* chars, int length) {
 
 void freeObject(Obj* obj) {
     switch (obj->type) {
+        case OBJ_ARRAY: {
+            ObjArray* array = (ObjArray*)obj;
+            freeValueArray(&array->elements);
+            FREE(ObjArray, array);
+            break;
+        }
         case OBJ_NATIVE:
             FREE(ObjNative, obj);
             break;
@@ -99,6 +111,16 @@ void freeObject(Obj* obj) {
 
 void printObject(Value value) {
     switch (OBJ_TYPE(value)) {
+        case OBJ_ARRAY: {
+            ObjArray* array = AS_ARRAY(value);
+            printf("[");
+            for (int i = 0; i < array->elements.count; i++) {
+                if (i > 0) printf(", ");
+                printValue(array->elements.values[i]);
+            }
+            printf("]");
+            break;
+        }
         case OBJ_FUNCTION: {
             ObjFunction* fn = AS_FUNCTION(value);
             if (fn->name == NULL) {

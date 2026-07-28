@@ -21,6 +21,18 @@ static void resetStack() {
 
 // ---- Natives ---------------------------------------------------------------
 
+static Value lenNative(int argCount, Value* args) {
+    if (IS_ARRAY(args[0])) return NUMBER_VAL(AS_ARRAY(args[0])->elements.count);
+    if (IS_STRING(args[0])) return NUMBER_VAL(AS_STRING(args[0])->length);
+    return NIL_VAL;
+}
+
+static Value pushNative(int argCount, Value* args) {
+    if (!IS_ARRAY(args[0])) return NIL_VAL;
+    writeValueArray(&AS_ARRAY(args[0])->elements, args[1]);
+    return NUMBER_VAL(AS_ARRAY(args[0])->elements.count);
+}
+
 static Value clockNative(int argCount, Value* args) {
     struct timeval tv;
     gettimeofday(&tv, NULL);
@@ -45,6 +57,8 @@ void initVM() {
     vm.grayStack      = NULL;
     initTable(&vm.globals);
     defineNative("clock", clockNative);
+    defineNative("len", lenNative);
+    defineNative("push", pushNative);
 }
 
 void freeVM() {
@@ -425,6 +439,62 @@ static InterpretResult run() {
                 frame               = &vm.frames[vm.frameCount - 1];
                 break;
             }
+            // --- Arrays ---
+            case OP_ARRAY: {
+                int count       = READ_BYTE();
+                ObjArray* array = newArray();
+                // Root the array on the stack before writeValueArray calls,
+                // which may reallocate and trigger GC.
+                push(OBJ_VAL(array));
+                for (int i = count; i >= 1; i--)
+                    writeValueArray(&array->elements, vm.stackTop[-1 - i]);
+                vm.stackTop -= count + 1;  // pop elements + temp root
+                push(OBJ_VAL(array));
+                break;
+            }
+            case OP_GET_INDEX: {
+                if (!IS_NUMBER(peek(0))) {
+                    runtimeError("Array index must be a number.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                int idx = (int)AS_NUMBER(pop());
+                if (!IS_ARRAY(peek(0))) {
+                    runtimeError("Can only index arrays.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                ObjArray* array = AS_ARRAY(pop());
+                if (idx < 0 || idx >= array->elements.count) {
+                    runtimeError("Index %d out of bounds (length %d).", idx,
+                                 array->elements.count);
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                push(array->elements.values[idx]);
+                break;
+            }
+            case OP_SET_INDEX: {
+                // Stack: [..., array, index, value]
+                if (!IS_NUMBER(peek(1))) {
+                    runtimeError("Array index must be a number.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                int idx = (int)AS_NUMBER(peek(1));
+                if (!IS_ARRAY(peek(2))) {
+                    runtimeError("Can only index arrays.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                ObjArray* array = AS_ARRAY(peek(2));
+                if (idx < 0 || idx >= array->elements.count) {
+                    runtimeError("Index %d out of bounds (length %d).", idx,
+                                 array->elements.count);
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                Value value              = peek(0);
+                array->elements.values[idx] = value;
+                pop(); pop();           // pop value, index
+                vm.stackTop[-1] = value;  // replace array with value on stack
+                break;
+            }
+
             case OP_RETURN: {
                 Value result = pop();
                 closeUpvalues(frame->slots);

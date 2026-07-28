@@ -343,6 +343,34 @@ check_error "undefined variable"         "print x;"          "Undefined variable
 check_error "assign undefined variable"  "x = 5;"            "Undefined variable"
 
 echo ""
+echo "=== Arrays ==="
+check "array literal and index"   $'let a = [1, 2, 3]; print a[0]; print a[1]; print a[2];' $'1\n2\n3'
+check "print array"               $'print [1, 2, 3];'                                        "[1, 2, 3]"
+check "empty array"               $'let a = []; print len(a);'                               "0"
+check "array set element"         $'let a = [1, 2, 3]; a[1] = 99; print a[1];'               "99"
+check "array of strings"          $'let a = ["x", "y"]; print a[0] + a[1];'                 "xy"
+check "array mixed types"         $'let a = [1, true, "hi"]; print a[2];'                    "hi"
+check "array in variable"         $'let a = [10, 20]; let b = a; print b[0];'                "10"
+check "array as function arg"     $'fn first(a) { return a[0]; }\nprint first([42, 99]);'    "42"
+check "nested arrays"             $'let a = [[1, 2], [3, 4]]; print a[0][1];'                "2"
+check "array loop"                $'let a = [0, 0, 0]; for (let i = 0; i < 3; i = i + 1) { a[i] = i * 2; } print a[0]; print a[1]; print a[2];' $'0\n2\n4'
+
+echo ""
+echo "=== len / push natives ==="
+check "len array"                 $'print len([1, 2, 3]);'                                   "3"
+check "len string"                $'print len("hello");'                                     "5"
+check "len empty"                 $'print len([]);'                                          "0"
+check "push appends element"      $'let a = [1, 2]; push(a, 3); print len(a); print a[2];'  $'3\n3'
+check "push returns new length"   $'let a = []; print push(a, "x"); print push(a, "y");'    $'1\n2'
+
+echo ""
+echo "=== Array runtime errors ==="
+check_error "index out of bounds" $'let a = [1, 2]; print a[5];'                             "out of bounds"
+check_error "negative index"      $'let a = [1, 2]; print a[-1];'                            "out of bounds"
+check_error "index non-array"     $'let x = 5; print x[0];'                                  "Can only index"
+check_error "set out of bounds"   $'let a = [1]; a[5] = 99;'                                 "out of bounds"
+
+echo ""
 echo "=== GC: string allocation pressure ==="
 check "GC: string concat loop" \
 $'let s = "";\nfor (let i = 0; i < 10; i = i + 1) { s = s + "a"; }\nprint s;' \

@@ -51,6 +51,11 @@ typedef enum {
     OP_SET_UPVALUE,    // operand: upvalue slot
     OP_CLOSE_UPVALUE,  // no operand; close top-of-stack into its upvalue
     OP_RETURN,
+
+    // Arrays
+    OP_ARRAY,      // operand: element count (uint8)
+    OP_GET_INDEX,  // pops index + array, pushes element
+    OP_SET_INDEX,  // pops value/index/array, pushes value
 } OpCode;
 
 typedef struct {
