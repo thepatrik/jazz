@@ -1,3 +1,4 @@
+#include <stdarg.h>
 #include <stdio.h>
 
 #include "common.h"
@@ -7,30 +8,21 @@
 
 VM vm;
 
-static void resetStack() {
-    vm.stackTop = vm.stack;
-}
+static void resetStack() { vm.stackTop = vm.stack; }
 
 void initVM() {
     resetStack();
+    initTable(&vm.globals);
 }
 
 void freeVM() {
+    freeTable(&vm.globals);
 }
 
-void push(Value value) {
-    *vm.stackTop = value;
-    vm.stackTop++;
-}
+void push(Value value) { *vm.stackTop++ = value; }
+Value pop()            { return *--vm.stackTop;   }
 
-Value pop() {
-    vm.stackTop--;
-    return *vm.stackTop;
-}
-
-static Value peek(int distance) {
-    return vm.stackTop[-1 - distance];
-}
+static Value peek(int distance) { return vm.stackTop[-1 - distance]; }
 
 static bool isFalsy(Value value) {
     return IS_NIL(value) || (IS_BOOL(value) && !AS_BOOL(value));
@@ -39,21 +31,29 @@ static bool isFalsy(Value value) {
 static bool valuesEqual(Value a, Value b) {
     if (a.type != b.type) return false;
     switch (a.type) {
-        case VAL_BOOL:   return AS_BOOL(a) == AS_BOOL(b);
+        case VAL_BOOL:   return AS_BOOL(a)   == AS_BOOL(b);
         case VAL_NIL:    return true;
         case VAL_NUMBER: return AS_NUMBER(a) == AS_NUMBER(b);
+        case VAL_STRING: return false;  // identity only; no interning yet
         default:         return false;
     }
 }
 
-static void runtimeError(const char* message) {
+static void runtimeError(const char* format, ...) {
     int line = vm.chunk->lines[(int)(vm.ip - vm.chunk->code - 1)];
-    fprintf(stderr, "[line %d] Runtime error: %s\n", line, message);
+    fprintf(stderr, "[line %d] Runtime error: ", line);
+
+    va_list args;
+    va_start(args, format);
+    vfprintf(stderr, format, args);
+    va_end(args);
+
+    fputs("\n", stderr);
     resetStack();
 }
 
 static InterpretResult run() {
-#define READ_BYTE() (*vm.ip++)
+#define READ_BYTE()     (*vm.ip++)
 #define READ_CONSTANT() (vm.chunk->constants.values[READ_BYTE()])
 #define BINARY_OP(valueType, op) \
     do { \
@@ -70,19 +70,21 @@ static InterpretResult run() {
 #ifdef DEBUG_TRACE_EXECUTION
         printf("          ");
         for (Value* slot = vm.stack; slot < vm.stackTop; slot++) {
-            printf("[ ");
-            printValue(*slot);
-            printf(" ]");
+            printf("[ "); printValue(*slot); printf(" ]");
         }
         printf("\n");
         disassembleInstruction(vm.chunk, (int)(vm.ip - vm.chunk->code));
 #endif
         uint8_t instruction;
         switch (instruction = READ_BYTE()) {
-            case OP_CONSTANT: push(READ_CONSTANT()); break;
-            case OP_NIL:      push(NIL_VAL);         break;
-            case OP_TRUE:     push(BOOL_VAL(true));  break;
-            case OP_FALSE:    push(BOOL_VAL(false)); break;
+
+            // --- Literals ---
+            case OP_CONSTANT: push(READ_CONSTANT());  break;
+            case OP_NIL:      push(NIL_VAL);          break;
+            case OP_TRUE:     push(BOOL_VAL(true));   break;
+            case OP_FALSE:    push(BOOL_VAL(false));  break;
+
+            // --- Unary ---
             case OP_NEGATE:
                 if (!IS_NUMBER(peek(0))) {
                     runtimeError("Operand must be a number.");
@@ -93,6 +95,8 @@ static InterpretResult run() {
             case OP_NOT:
                 push(BOOL_VAL(isFalsy(pop())));
                 break;
+
+            // --- Arithmetic ---
             case OP_ADD:      BINARY_OP(NUMBER_VAL, +); break;
             case OP_SUBTRACT: BINARY_OP(NUMBER_VAL, -); break;
             case OP_MULTIPLY: BINARY_OP(NUMBER_VAL, *); break;
@@ -110,19 +114,54 @@ static InterpretResult run() {
                 push(NUMBER_VAL(a / b));
                 break;
             }
+
+            // --- Comparison ---
             case OP_EQUAL: {
-                Value b = pop();
-                Value a = pop();
+                Value b = pop(), a = pop();
                 push(BOOL_VAL(valuesEqual(a, b)));
                 break;
             }
             case OP_GREATER: BINARY_OP(BOOL_VAL, >); break;
             case OP_LESS:    BINARY_OP(BOOL_VAL, <); break;
-            case OP_RETURN: {
+
+            // --- Statements ---
+            case OP_POP:
+                pop();
+                break;
+            case OP_PRINT:
                 printValue(pop());
                 printf("\n");
-                return INTERPRET_OK;
+                break;
+
+            // --- Global variables ---
+            case OP_DEFINE_GLOBAL: {
+                const char* name = AS_STRING(READ_CONSTANT());
+                tableSet(&vm.globals, name, peek(0));
+                pop();
+                break;
             }
+            case OP_GET_GLOBAL: {
+                const char* name = AS_STRING(READ_CONSTANT());
+                Value value;
+                if (!tableGet(&vm.globals, name, &value)) {
+                    runtimeError("Undefined variable '%s'.", name);
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                push(value);
+                break;
+            }
+            case OP_SET_GLOBAL: {
+                const char* name = AS_STRING(READ_CONSTANT());
+                if (tableSet(&vm.globals, name, peek(0))) {
+                    tableDelete(&vm.globals, name);
+                    runtimeError("Undefined variable '%s'.", name);
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                break;
+            }
+
+            case OP_RETURN:
+                return INTERPRET_OK;
         }
     }
 
@@ -141,10 +180,9 @@ InterpretResult interpret(const char* source) {
     }
 
     vm.chunk = &chunk;
-    vm.ip = vm.chunk->code;
+    vm.ip    = vm.chunk->code;
 
     InterpretResult result = run();
-
     freeChunk(&chunk);
     return result;
 }
