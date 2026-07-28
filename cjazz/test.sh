@@ -397,6 +397,30 @@ $'fn sum(n) { if (n <= 0) return 0; let s = "" + n; return n + sum(n - 1); }\npr
 "210"
 
 echo ""
+echo "=== break ==="
+check "break exits while"           $'let i = 0; while (i < 10) { if (i == 3) break; i = i + 1; } print i;'  "3"
+check "break exits for"             $'let r = 0; for (let i = 0; i < 10; i = i + 1) { if (i == 5) { r = i; break; } } print r;'  "5"
+check "break inner loop only"       $'let s = 0; for (let i = 0; i < 3; i = i + 1) { for (let j = 0; j < 3; j = j + 1) { if (j == 1) break; s = s + 1; } } print s;'  "3"
+check "break with locals"           $'let r = 0; for (let i = 0; i < 5; i = i + 1) { let x = i * 2; if (x > 4) break; r = x; } print r;'  "4"
+check "break infinite while"        $'let i = 0; while (true) { i = i + 1; if (i == 7) break; } print i;'  "7"
+check "multiple breaks one fires"   $'let i = 0; while (i < 10) { i = i + 1; if (i == 3) break; if (i == 7) break; } print i;'  "3"
+
+echo ""
+echo "=== continue ==="
+check "continue skips rest while"   $'let s = 0; let i = 0; while (i < 5) { i = i + 1; if (i == 3) continue; s = s + i; } print s;'  "12"
+check "continue skips rest for"     $'let s = 0; for (let i = 0; i < 5; i = i + 1) { if (i == 2) continue; s = s + i; } print s;'  "8"
+check "continue runs increment"     $'let s = 0; for (let i = 0; i < 5; i = i + 1) { if (i == 2) continue; s = s + 1; } print s;'  "4"
+check "continue inner loop only"    $'let s = 0; for (let i = 0; i < 3; i = i + 1) { for (let j = 0; j < 3; j = j + 1) { if (j == 1) continue; s = s + 1; } } print s;'  "6"
+check "continue with locals"        $'let s = 0; for (let i = 0; i < 5; i = i + 1) { let x = i * 2; if (x == 4) continue; s = s + x; } print s;'  "16"
+
+echo ""
+echo "=== break/continue error cases ==="
+check_error "break outside loop"    $'break;'                                                  "outside of loop"
+check_error "continue outside loop" $'continue;'                                               "outside of loop"
+check_error "break in function"     $'fn f() { break; } while (true) { f(); break; }'         "outside of loop"
+check_error "continue in function"  $'fn f() { continue; } while (true) { f(); break; }'      "outside of loop"
+
+echo ""
 echo "=== GC: native survives pressure ==="
 check "GC: clock usable after alloc pressure" \
 $'let t = clock();\nlet s = "";\nfor (let i = 0; i < 100; i = i + 1) { s = s + "x"; }\nprint t > 0;' \

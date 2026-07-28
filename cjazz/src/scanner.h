@@ -34,6 +34,8 @@ typedef enum {
 
     // Keywords.
     TOKEN_AND,
+    TOKEN_BREAK,
+    TOKEN_CONTINUE,
     TOKEN_ELSE,
     TOKEN_FALSE,
     TOKEN_FOR,

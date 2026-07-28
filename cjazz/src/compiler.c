@@ -59,6 +59,16 @@ typedef enum {
     TYPE_SCRIPT,
 } FunctionType;
 
+#define MAX_BREAK_JUMPS 256
+
+typedef struct {
+    int continueTarget;
+    int breakLocalCount;      // restore to here on break (before loop scope)
+    int continueLocalCount;   // restore to here on continue (after for-init)
+    int breakJumps[MAX_BREAK_JUMPS];
+    int breakCount;
+} LoopContext;
+
 typedef struct Compiler {
     struct Compiler* enclosing;
     ObjFunction* function;
@@ -66,6 +76,7 @@ typedef struct Compiler {
     Local locals[UINT8_COUNT];
     int localCount;
     int scopeDepth;
+    int savedLoopDepth;  // loopDepth at function entry; break/continue must exceed this
     Upvalue upvalues[UINT8_COUNT];
 } Compiler;
 
@@ -73,6 +84,8 @@ typedef struct Compiler {
 
 static Parser parser;
 static Compiler* current = NULL;
+static LoopContext loopStack[16];
+static int loopDepth = 0;
 
 static Chunk* currentChunk() {
     return &current->function->chunk;
@@ -81,12 +94,13 @@ static Chunk* currentChunk() {
 // ---- Compiler init ---------------------------------------------------------
 
 static void initCompiler(Compiler* compiler, FunctionType type) {
-    compiler->enclosing  = current;
-    compiler->function   = newFunction();
-    compiler->type       = type;
-    compiler->localCount = 0;
-    compiler->scopeDepth = 0;
-    current              = compiler;
+    compiler->enclosing      = current;
+    compiler->function       = newFunction();
+    compiler->type           = type;
+    compiler->localCount     = 0;
+    compiler->scopeDepth     = 0;
+    compiler->savedLoopDepth = loopDepth;
+    current                  = compiler;
 
     // Reserve slot 0 for the function/script being called.
     Local* local       = &current->locals[current->localCount++];
@@ -188,7 +202,8 @@ static ObjFunction* endCompiler() {
         disassembleChunk(currentChunk(), fn->name != NULL ? fn->name : "<script>");
     }
 #endif
-    current = current->enclosing;
+    loopDepth = current->savedLoopDepth;
+    current   = current->enclosing;
     return fn;
 }
 
@@ -561,6 +576,8 @@ ParseRule rules[] = {
     [TOKEN_STRING]        = {string, NULL, PREC_NONE},
     [TOKEN_NUMBER]        = {number, NULL, PREC_NONE},
     [TOKEN_AND]           = {NULL, and_, PREC_AND},
+    [TOKEN_BREAK]         = {NULL, NULL, PREC_NONE},
+    [TOKEN_CONTINUE]      = {NULL, NULL, PREC_NONE},
     [TOKEN_ELSE]          = {NULL, NULL, PREC_NONE},
     [TOKEN_FALSE]         = {literal, NULL, PREC_NONE},
     [TOKEN_FOR]           = {NULL, NULL, PREC_NONE},
@@ -658,8 +675,45 @@ static void ifStatement() {
     patchJump(elseJump);
 }
 
+static void breakStatement() {
+    if (loopDepth <= current->savedLoopDepth) {
+        error("'break' outside of loop.");
+        return;
+    }
+    consume(TOKEN_SEMICOLON, "Expected ';' after 'break'.");
+    LoopContext* loop = &loopStack[loopDepth - 1];
+    if (loop->breakCount == MAX_BREAK_JUMPS) {
+        error("Too many 'break' statements in one loop.");
+        return;
+    }
+    // Pop locals declared inside the loop (body + for-init locals).
+    for (int i = current->localCount - 1; i >= loop->breakLocalCount; i--)
+        emitByte(current->locals[i].isCaptured ? OP_CLOSE_UPVALUE : OP_POP);
+    loop->breakJumps[loop->breakCount++] = emitJump(OP_JUMP);
+}
+
+static void continueStatement() {
+    if (loopDepth <= current->savedLoopDepth) {
+        error("'continue' outside of loop.");
+        return;
+    }
+    consume(TOKEN_SEMICOLON, "Expected ';' after 'continue'.");
+    LoopContext* loop = &loopStack[loopDepth - 1];
+    // Pop locals declared inside the loop body (not for-init locals).
+    for (int i = current->localCount - 1; i >= loop->continueLocalCount; i--)
+        emitByte(current->locals[i].isCaptured ? OP_CLOSE_UPVALUE : OP_POP);
+    emitLoop(loop->continueTarget);
+}
+
 static void whileStatement() {
     int loopStart = currentChunk()->count;
+
+    LoopContext* loop     = &loopStack[loopDepth++];
+    loop->continueTarget     = loopStart;
+    loop->breakLocalCount    = current->localCount;
+    loop->continueLocalCount = current->localCount;
+    loop->breakCount         = 0;
+
     consume(TOKEN_LEFT_PAREN, "Expected '(' after 'while'.");
     expression();
     consume(TOKEN_RIGHT_PAREN, "Expected ')' after condition.");
@@ -671,9 +725,14 @@ static void whileStatement() {
 
     patchJump(exitJump);
     emitByte(OP_POP);
+
+    for (int i = 0; i < loop->breakCount; i++)
+        patchJump(loop->breakJumps[i]);
+    loopDepth--;
 }
 
 static void forStatement() {
+    int outerLocalCount = current->localCount;
     beginScope();
     consume(TOKEN_LEFT_PAREN, "Expected '(' after 'for'.");
 
@@ -706,6 +765,13 @@ static void forStatement() {
         patchJump(bodyJump);
     }
 
+    // Push context after loopStart is finalised (increment or condition).
+    LoopContext* loop     = &loopStack[loopDepth++];
+    loop->continueTarget     = loopStart;
+    loop->breakLocalCount    = outerLocalCount;   // break must pop for-init locals too
+    loop->continueLocalCount = current->localCount;  // continue keeps for-init locals
+    loop->breakCount         = 0;
+
     statement();
     emitLoop(loopStart);
 
@@ -714,7 +780,12 @@ static void forStatement() {
         emitByte(OP_POP);
     }
 
-    endScope();
+    endScope();  // pops for-init locals for the normal exit path
+
+    // Patch break jumps AFTER endScope so they land past the for-init pops.
+    for (int i = 0; i < loop->breakCount; i++)
+        patchJump(loop->breakJumps[i]);
+    loopDepth--;
 }
 
 static uint8_t parseVariable(const char* errorMessage) {
@@ -800,6 +871,8 @@ static void synchronize() {
             case TOKEN_WHILE:
             case TOKEN_PRINT:
             case TOKEN_RETURN:
+            case TOKEN_BREAK:
+            case TOKEN_CONTINUE:
                 return;
             default:
                 break;
@@ -819,6 +892,10 @@ static void statement() {
         whileStatement();
     } else if (match(TOKEN_FOR)) {
         forStatement();
+    } else if (match(TOKEN_BREAK)) {
+        breakStatement();
+    } else if (match(TOKEN_CONTINUE)) {
+        continueStatement();
     } else if (match(TOKEN_LEFT_BRACE)) {
         beginScope();
         blockStatement();
