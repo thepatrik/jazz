@@ -2,6 +2,10 @@
 #define jazz_memory_h
 
 #include "common.h"
+#include "value.h"  // for Value in markValue
+
+// Forward declaration (full type in object.h, included by callers)
+struct Obj;
 
 #define GROW_CAPACITY(capacity) ((capacity) < 8 ? 8 : (capacity) * 2)
 
@@ -10,6 +14,12 @@
 
 #define FREE_ARRAY(type, pointer, oldCount) reallocate(pointer, sizeof(type) * (oldCount), 0)
 
-void* reallocate(void* previous, size_t oldSize, size_t newSize);
+#define FREE(type, pointer) reallocate(pointer, sizeof(type), 0)
+
+void* reallocate(void* pointer, size_t oldSize, size_t newSize);
+
+void markObject(struct Obj* obj);
+void markValue(Value value);
+void collectGarbage();
 
 #endif

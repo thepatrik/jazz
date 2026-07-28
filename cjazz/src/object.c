@@ -5,17 +5,17 @@
 #include <string.h>
 
 #include "chunk.h"
+#include "memory.h"
 #include "value.h"
 #include "vm.h"
 
-extern VM vm;
-
 // Central allocator: every new object is immediately linked into vm.objects.
 static Obj* allocObject(size_t size, ObjType type) {
-    Obj* obj   = (Obj*)malloc(size);
-    obj->type  = type;
-    obj->next  = vm.objects;
-    vm.objects = obj;
+    Obj* obj      = (Obj*)reallocate(NULL, 0, size);
+    obj->type     = type;
+    obj->isMarked = false;
+    obj->next     = vm.objects;
+    vm.objects    = obj;
     return obj;
 }
 
@@ -37,7 +37,12 @@ ObjUpvalue* newUpvalue(Value* slot) {
 }
 
 ObjClosure* newClosure(ObjFunction* fn) {
-    ObjUpvalue** upvalues = (ObjUpvalue**)malloc(sizeof(ObjUpvalue*) * fn->upvalueCount);
+    // Allocate the upvalue pointer array through reallocate so its bytes are
+    // counted.  Guard against fn->upvalueCount == 0 to avoid a zero-size
+    // GROW_ARRAY call (which reallocate treats as a free, returning NULL).
+    ObjUpvalue** upvalues = fn->upvalueCount > 0
+                                ? GROW_ARRAY(ObjUpvalue*, NULL, 0, fn->upvalueCount)
+                                : NULL;
     for (int i = 0; i < fn->upvalueCount; i++) upvalues[i] = NULL;
     ObjClosure* closure   = (ObjClosure*)allocObject(sizeof(ObjClosure), OBJ_CLOSURE);
     closure->function     = fn;
@@ -47,15 +52,15 @@ ObjClosure* newClosure(ObjFunction* fn) {
 }
 
 ObjNative* newNative(NativeFn function) {
-    ObjNative* native  = (ObjNative*)allocObject(sizeof(ObjNative), OBJ_NATIVE);
-    native->function   = function;
+    ObjNative* native = (ObjNative*)allocObject(sizeof(ObjNative), OBJ_NATIVE);
+    native->function  = function;
     return native;
 }
 
 ObjString* newString(const char* chars, int length) {
     ObjString* str = (ObjString*)allocObject(sizeof(ObjString), OBJ_STRING);
     str->length    = length;
-    str->chars     = (char*)malloc(length + 1);
+    str->chars     = (char*)reallocate(NULL, 0, length + 1);
     memcpy(str->chars, chars, length);
     str->chars[length] = '\0';
     return str;
@@ -64,28 +69,29 @@ ObjString* newString(const char* chars, int length) {
 void freeObject(Obj* obj) {
     switch (obj->type) {
         case OBJ_NATIVE:
-            free(obj);
+            FREE(ObjNative, obj);
             break;
         case OBJ_FUNCTION: {
             ObjFunction* fn = (ObjFunction*)obj;
             freeChunk(&fn->chunk);
+            // fn->name was set by strndup (not reallocate) — free directly.
             free(fn->name);
-            free(fn);
+            FREE(ObjFunction, fn);
             break;
         }
         case OBJ_UPVALUE:
-            free(obj);
+            FREE(ObjUpvalue, obj);
             break;
         case OBJ_CLOSURE: {
             ObjClosure* closure = (ObjClosure*)obj;
-            free(closure->upvalues);
-            free(closure);
+            FREE_ARRAY(ObjUpvalue*, closure->upvalues, closure->upvalueCount);
+            FREE(ObjClosure, closure);
             break;
         }
         case OBJ_STRING: {
             ObjString* str = (ObjString*)obj;
-            free(str->chars);
-            free(str);
+            FREE_ARRAY(char, str->chars, str->length + 1);
+            FREE(ObjString, str);
             break;
         }
     }

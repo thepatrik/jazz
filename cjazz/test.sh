@@ -342,6 +342,38 @@ check_error "negate non-number"          "print -true;"      "Runtime error"
 check_error "undefined variable"         "print x;"          "Undefined variable"
 check_error "assign undefined variable"  "x = 5;"            "Undefined variable"
 
+echo ""
+echo "=== GC: string allocation pressure ==="
+check "GC: string concat loop" \
+$'let s = "";\nfor (let i = 0; i < 10; i = i + 1) { s = s + "a"; }\nprint s;' \
+"aaaaaaaaaa"
+
+check "GC: number coercion concat loop" \
+$'let s = "";\nfor (let i = 0; i < 5; i = i + 1) { s = s + true; }\nprint s;' \
+"truetruetruetruetrue"
+
+echo ""
+echo "=== GC: closures survive collection ==="
+check "GC: closure upvalue survives pressure" \
+$'fn makeCounter() {\n  let n = 0;\n  fn count() { n = n + 1; return n; }\n  return count;\n}\nlet c = makeCounter();\nlet s = "";\nfor (let i = 0; i < 50; i = i + 1) { s = s + "x"; }\nprint c();\nprint c();' \
+$'1\n2'
+
+check "GC: returned closure not collected" \
+$'fn f() { let x = 42; fn g() { return x; } return g; }\nlet g = f();\nlet s = "";\nfor (let i = 0; i < 50; i = i + 1) { s = s + "x"; }\nprint g();' \
+"42"
+
+echo ""
+echo "=== GC: recursion under pressure ==="
+check "GC: recursion with allocation" \
+$'fn sum(n) { if (n <= 0) return 0; let s = "" + n; return n + sum(n - 1); }\nprint sum(20);' \
+"210"
+
+echo ""
+echo "=== GC: native survives pressure ==="
+check "GC: clock usable after alloc pressure" \
+$'let t = clock();\nlet s = "";\nfor (let i = 0; i < 100; i = i + 1) { s = s + "x"; }\nprint t > 0;' \
+"true"
+
 rm -f "$TMPFILE"
 
 echo ""

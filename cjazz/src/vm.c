@@ -28,12 +28,21 @@ static Value clockNative(int argCount, Value* args) {
 }
 
 static void defineNative(const char* name, NativeFn function) {
-    tableSet(&vm.globals, name, OBJ_VAL(newNative(function)));
+    // Push while calling tableSet so the native stays rooted if tableSet
+    // triggers a resize (and thus a GC) internally.
+    push(OBJ_VAL(newNative(function)));
+    tableSet(&vm.globals, name, vm.stackTop[-1]);
+    pop();
 }
 
 void initVM() {
     resetStack();
-    vm.objects = NULL;
+    vm.objects        = NULL;
+    vm.bytesAllocated = 0;
+    vm.nextGC         = GC_INITIAL_NEXT_GC;
+    vm.grayCount      = 0;
+    vm.grayCapacity   = 0;
+    vm.grayStack      = NULL;
     initTable(&vm.globals);
     defineNative("clock", clockNative);
 }
@@ -46,6 +55,11 @@ void freeVM() {
         freeObject(obj);
         obj = next;
     }
+    // grayStack is managed with raw realloc, not reallocate — free directly.
+    free(vm.grayStack);
+    vm.grayStack    = NULL;
+    vm.grayCount    = 0;
+    vm.grayCapacity = 0;
 }
 
 void push(Value value) {
@@ -222,8 +236,15 @@ static InterpretResult run() {
             // --- Arithmetic ---
             case OP_ADD: {
                 if (IS_STRING(peek(0)) || IS_STRING(peek(1))) {
-                    ObjString* b = valueToString(pop());
-                    ObjString* a = valueToString(pop());
+                    // Coerce in-place while values are still on the stack
+                    // (stack = GC roots), so an allocation inside valueToString
+                    // can never trigger a sweep of the other operand.
+                    if (!IS_STRING(peek(0)))
+                        vm.stackTop[-1] = OBJ_VAL(valueToString(peek(0)));
+                    if (!IS_STRING(peek(1)))
+                        vm.stackTop[-2] = OBJ_VAL(valueToString(peek(1)));
+                    ObjString* b = AS_STRING(pop());
+                    ObjString* a = AS_STRING(pop());
                     int len      = a->length + b->length;
                     char* buf    = (char*)malloc(len + 1);
                     memcpy(buf, a->chars, a->length);

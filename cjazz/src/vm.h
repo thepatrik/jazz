@@ -8,6 +8,9 @@
 #define FRAMES_MAX 64
 #define STACK_MAX (FRAMES_MAX * UINT8_COUNT)
 
+#define GC_HEAP_GROW_FACTOR 2
+#define GC_INITIAL_NEXT_GC  (1024 * 1024)  // 1 MiB
+
 typedef struct {
     ObjClosure* closure;
     uint8_t* ip;
@@ -22,7 +25,16 @@ typedef struct {
     Table globals;
     Obj* objects;              // linked list of all heap objects
     ObjUpvalue* openUpvalues;  // head of the open-upvalue chain
+    // GC state
+    size_t bytesAllocated;
+    size_t nextGC;
+    int grayCount;
+    int grayCapacity;
+    Obj** grayStack;
 } VM;
+
+// Global VM instance — defined in vm.c.
+extern VM vm;
 
 typedef enum {
     INTERPRET_OK,
