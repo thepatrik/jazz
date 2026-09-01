@@ -11,6 +11,8 @@ EXE		:= $(BIN)/main.exe
 CFLAGS	:= -I$(INCLUDE) -O2
 LDLIBS	:= -lm
 
+.DEFAULT_GOAL := run
+
 .PHONY: all run test format clean
 
 all: $(EXE)
