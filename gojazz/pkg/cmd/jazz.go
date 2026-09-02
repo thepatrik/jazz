@@ -1,12 +1,12 @@
 package cmd
 
 import (
-	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
-	"strings"
 
+	"github.com/peterh/liner"
 	"github.com/spf13/cobra"
 	"github.com/thepatrik/jazz/gojazz/pkg/jazz"
 	"github.com/thepatrik/strcolor"
@@ -105,28 +105,64 @@ func runFilesInDir(dir string) {
 	}
 }
 
+// historyPath returns the shared REPL history file (~/.jazz_history, same
+// filename as the cjazz linenoise REPL) or "" if $HOME is unset.
+func historyPath() string {
+	home := os.Getenv("HOME")
+	if home == "" {
+		return ""
+	}
+	return filepath.Join(home, ".jazz_history")
+}
+
 func repl() {
 	interpreter := jazz.NewInterpreter(jazz.WithRepl(true))
-	reader := bufio.NewReader(os.Stdin)
+
+	// liner is the pure-Go linenoise port: left/right cursor, Home/End,
+	// backspace, and up/down history. It also detects non-TTY (piped) stdin
+	// and falls back to a plain buffered line read, returning io.EOF at end.
+	state := liner.NewLiner()
+	defer state.Close()
+	state.SetCtrlCAborts(true)
+
+	histPath := historyPath()
+	if histPath != "" {
+		if f, err := os.Open(histPath); err == nil {
+			_, _ = state.ReadHistory(f)
+			f.Close()
+		}
+	}
 
 	fmt.Println(strcolor.BrightCyan(fmt.Sprintf("Welcome to Jazz v%s", version)))
 	fmt.Println(strcolor.Cyan("Type \".exit\" to exit."))
 
 	for {
-		fmt.Printf("> ")
-		line, err := reader.ReadString('\n')
+		line, err := state.Prompt("> ")
+		if err == liner.ErrPromptAborted || err == io.EOF {
+			// Ctrl-C (abort) or Ctrl-D / piped EOF: exit cleanly.
+			fmt.Println()
+			break
+		}
 		if err != nil {
 			fmt.Printf("could not read line %s\n", err)
-			os.Exit(1)
+			break
 		}
 
-		line = strings.TrimSuffix(line, "\n")
 		if line == ".exit" {
 			break
 		}
 
-		err = run(interpreter, line)
-		if err != nil {
+		if line != "" {
+			state.AppendHistory(line)
+			if histPath != "" {
+				if f, err := os.Create(histPath); err == nil {
+					_, _ = state.WriteHistory(f)
+					f.Close()
+				}
+			}
+		}
+
+		if err := run(interpreter, line); err != nil {
 			fmt.Println(err)
 		}
 	}
