@@ -8,7 +8,7 @@ SRC		:= ./src
 VENDOR	:= ./vendor/linenoise
 SRCS	:= $(wildcard $(SRC)/*.c)
 OBJS	:= $(patsubst $(SRC)/%.c,$(OBJ)/%.o,$(SRCS)) $(OBJ)/linenoise.o
-EXE		:= $(BIN)/main.exe
+EXE		:= $(BIN)/jazz
 CFLAGS	:= -I$(INCLUDE) -I$(VENDOR) -O2
 LDLIBS	:= -lm
 

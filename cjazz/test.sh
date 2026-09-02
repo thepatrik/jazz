@@ -1,6 +1,6 @@
 #!/bin/bash
 
-BINARY="$(dirname "$0")/bin/main.exe"
+BINARY="$(dirname "$0")/bin/jazz"
 TMPFILE=$(mktemp /tmp/jazz_XXXXXX.jz)
 PASS=0
 FAIL=0
