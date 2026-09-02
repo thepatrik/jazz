@@ -53,14 +53,14 @@ func Execute() {
 	}
 }
 
-func run(interpreter *jazz.Interpreter, source string) error {
+func run(interpreter *jazz.Interpreter, source string, repl bool) error {
 	scanner := jazz.NewScanner(source)
 	tokens, err := scanner.ScanTokens()
 	if err != nil {
 		return err
 	}
 
-	parser := jazz.NewParser(tokens)
+	parser := jazz.NewParser(tokens, repl)
 	stmts, err := parser.Parse()
 	if err != nil || parser.HasErrors() {
 		return err
@@ -85,7 +85,7 @@ func runFile(file string) {
 	}
 
 	interpreter := jazz.NewInterpreter()
-	err = run(interpreter, string(b))
+	err = run(interpreter, string(b), false)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -162,7 +162,7 @@ func repl() {
 			}
 		}
 
-		if err := run(interpreter, line); err != nil {
+		if err := run(interpreter, line, true); err != nil {
 			fmt.Println(err)
 		}
 	}

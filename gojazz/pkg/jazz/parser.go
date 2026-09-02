@@ -15,13 +15,14 @@ func (err *ParserError) Error() string {
 type Parser struct {
 	Errors   []error
 	Tokens   []*Token
+	Repl     bool
 	Position struct {
 		Current int
 	}
 }
 
-func NewParser(tokens []*Token) *Parser {
-	return &Parser{Tokens: tokens, Errors: []error{}}
+func NewParser(tokens []*Token, repl bool) *Parser {
+	return &Parser{Tokens: tokens, Errors: []error{}, Repl: repl}
 }
 
 func (p *Parser) HasErrors() bool {
@@ -377,7 +378,7 @@ func (p *Parser) expressionStmt() (Stmt, error) {
 		return nil, err
 	}
 
-	_, err = p.consume(TokenTypeSemicolon, "expected ';' after expression.")
+	_, err = p.consumeSemicolon("expected ';' after expression.")
 	return &ExprStmt{Expr: expr}, err
 }
 
@@ -395,8 +396,20 @@ func (p *Parser) varDeclaration() (Stmt, error) {
 		}
 	}
 
-	_, err = p.consume(TokenTypeSemicolon, "expected ';' after expression.")
+	_, err = p.consumeSemicolon("expected ';' after expression.")
 	return &VarStmt{Name: name, Initializer: initializer}, err
+}
+
+// consumeSemicolon is like consume(TokenTypeSemicolon, ...), but in the REPL
+// a trailing ';' is optional when it would be the very last token typed
+// (i.e. we're already at EOF) — lets "1 + 2" and "let x = 5" work without a
+// semicolon while scripts, and REPL input that isn't at end-of-line yet,
+// still require one.
+func (p *Parser) consumeSemicolon(message string) (*Token, error) {
+	if p.Repl && p.isAtEnd() {
+		return nil, nil
+	}
+	return p.consume(TokenTypeSemicolon, message)
 }
 
 func (p *Parser) sync() {

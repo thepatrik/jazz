@@ -168,6 +168,16 @@ static bool match(TokenType type) {
     return true;
 }
 
+// Like consume(TOKEN_SEMICOLON, ...), but in the REPL a trailing ';' is
+// optional when it would be the very last token typed (i.e. we're already at
+// EOF) — lets "1 + 2" and "let x = 5" work without a semicolon while scripts,
+// and REPL input that isn't at end-of-line yet, still require one.
+static void consumeSemicolon(const char* message) {
+    if (replMode && check(TOKEN_EOF))
+        return;
+    consume(TOKEN_SEMICOLON, message);
+}
+
 // ---- Emit ------------------------------------------------------------------
 
 static void emitByte(uint8_t byte) {
@@ -658,7 +668,7 @@ static void blockStatement() {
 
 static void expressionStatement() {
     expression();
-    consume(TOKEN_SEMICOLON, "Expected ';' after expression.");
+    consumeSemicolon("Expected ';' after expression.");
     // In the REPL, a bare expression statement at the top level of the script
     // (not nested in any function or block) auto-prints its result — mirroring
     // gojazz's WithRepl(true). Everywhere else the value is discarded.
@@ -842,7 +852,7 @@ static void varDeclaration() {
     } else {
         emitByte(OP_NIL);
     }
-    consume(TOKEN_SEMICOLON, "Expected ';' after variable declaration.");
+    consumeSemicolon("Expected ';' after variable declaration.");
     defineVariable(global);
 }
 
