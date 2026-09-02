@@ -568,8 +568,8 @@ static InterpretResult run() {
 #undef BINARY_OP
 }
 
-InterpretResult interpret(const char* source) {
-    ObjFunction* fn = compile(source);
+static InterpretResult interpretSource(const char* source, bool replMode) {
+    ObjFunction* fn = compile(source, replMode);
     if (fn == NULL)
         return INTERPRET_COMPILE_ERROR;
 
@@ -582,4 +582,13 @@ InterpretResult interpret(const char* source) {
     frame->slots     = vm.stack;
 
     return run();
+}
+
+InterpretResult interpret(const char* source) {
+    return interpretSource(source, false);
+}
+
+// REPL entry: top-level bare expression statements auto-print their result.
+InterpretResult interpretRepl(const char* source) {
+    return interpretSource(source, true);
 }

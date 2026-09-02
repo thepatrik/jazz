@@ -86,6 +86,9 @@ static Parser parser;
 static Compiler* current = NULL;
 static LoopContext loopStack[16];
 static int loopDepth = 0;
+// When true (REPL input), a TOP-LEVEL bare expression statement prints its
+// value instead of discarding it. Never set for file execution.
+static bool replMode = false;
 
 static Chunk* currentChunk() {
     return &current->function->chunk;
@@ -656,7 +659,14 @@ static void blockStatement() {
 static void expressionStatement() {
     expression();
     consume(TOKEN_SEMICOLON, "Expected ';' after expression.");
-    emitByte(OP_POP);
+    // In the REPL, a bare expression statement at the top level of the script
+    // (not nested in any function or block) auto-prints its result — mirroring
+    // gojazz's WithRepl(true). Everywhere else the value is discarded.
+    if (replMode && current->type == TYPE_SCRIPT && current->scopeDepth == 0) {
+        emitByte(OP_PRINT);
+    } else {
+        emitByte(OP_POP);
+    }
 }
 
 static void printStatement() {
@@ -940,7 +950,8 @@ static void declaration() {
 
 // ---- Entry point -----------------------------------------------------------
 
-ObjFunction* compile(const char* source) {
+ObjFunction* compile(const char* source, bool repl) {
+    replMode = repl;
     initScanner(source);
 
     Compiler compiler;
