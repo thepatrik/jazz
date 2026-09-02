@@ -14,6 +14,7 @@ const (
 	TokenTypeRightBracket
 	TokenTypeComma
 	TokenTypeDot
+	TokenTypeColon
 	TokenTypeMinus
 	TokenTypePlus
 	TokenTypeSemicolon

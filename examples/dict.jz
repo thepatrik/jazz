@@ -1,0 +1,32 @@
+// Dictionary / map demo for cjazz.
+
+// 1. Create a dictionary literal (string keys).
+let d = { "name": "Ada", "age": 36 };
+
+// 2. Read existing keys.
+print d["name"];          // Ada
+print d["age"];           // 36
+
+// 3. Read a missing key -> nil.
+print d["missing"];       // nil
+
+// 4. Insert a new key.
+d["role"] = "engineer";
+print d["role"];          // engineer
+
+// 5. Overwrite an existing key.
+d["age"] = 37;
+print d["age"];           // 37
+
+// 6. len returns the entry count.
+print len(d);             // 3
+
+// Empty dictionary literal + len.
+let empty = {};
+print len(empty);         // 0
+
+// Nested value and computed key.
+let key = "sc" + "ore";
+d[key] = 99;
+print d["score"];         // 99
+print len(d);             // 4

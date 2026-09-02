@@ -3,11 +3,13 @@
 
 #include "chunk.h"
 #include "common.h"
+#include "table.h"
 #include "value.h"
 
 typedef enum {
     OBJ_ARRAY,
     OBJ_CLOSURE,
+    OBJ_DICT,
     OBJ_FUNCTION,
     OBJ_NATIVE,
     OBJ_STRING,
@@ -26,6 +28,15 @@ typedef struct {
     Obj obj;
     ValueArray elements;
 } ObjArray;
+
+// ---- ObjDict ---------------------------------------------------------------
+// A first-class dictionary/map value. Backed by the existing string-keyed hash
+// table (table.{c,h}); keys are C strings, so only string keys are supported.
+
+typedef struct {
+    Obj obj;
+    Table table;
+} ObjDict;
 
 // ---- ObjFunction -----------------------------------------------------------
 
@@ -80,12 +91,14 @@ typedef struct {
 #define OBJ_TYPE(value) (AS_OBJ(value)->type)
 #define IS_ARRAY(value) (isObjType(value, OBJ_ARRAY))
 #define IS_CLOSURE(value) (isObjType(value, OBJ_CLOSURE))
+#define IS_DICT(value) (isObjType(value, OBJ_DICT))
 #define IS_FUNCTION(value) (isObjType(value, OBJ_FUNCTION))
 #define IS_NATIVE(value) (isObjType(value, OBJ_NATIVE))
 #define IS_STRING(value) (isObjType(value, OBJ_STRING))
 #define IS_UPVALUE(value) (isObjType(value, OBJ_UPVALUE))
 #define AS_ARRAY(value) ((ObjArray*)AS_OBJ(value))
 #define AS_CLOSURE(value) ((ObjClosure*)AS_OBJ(value))
+#define AS_DICT(value) ((ObjDict*)AS_OBJ(value))
 #define AS_FUNCTION(value) ((ObjFunction*)AS_OBJ(value))
 #define AS_NATIVE(value) ((ObjNative*)AS_OBJ(value))
 #define AS_STRING(value) ((ObjString*)AS_OBJ(value))
@@ -98,6 +111,7 @@ static inline bool isObjType(Value value, ObjType type) {
 // ---- Constructors ----------------------------------------------------------
 
 ObjArray* newArray();
+ObjDict* newDict();
 ObjFunction* newFunction();
 ObjUpvalue* newUpvalue(Value* slot);
 ObjClosure* newClosure(ObjFunction* fn);

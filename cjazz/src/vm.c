@@ -24,6 +24,7 @@ static void resetStack() {
 static Value lenNative(int argCount, Value* args) {
     if (IS_ARRAY(args[0])) return NUMBER_VAL(AS_ARRAY(args[0])->elements.count);
     if (IS_STRING(args[0])) return NUMBER_VAL(AS_STRING(args[0])->length);
+    if (IS_DICT(args[0])) return NUMBER_VAL(AS_DICT(args[0])->table.count);
     return NIL_VAL;
 }
 
@@ -453,13 +454,27 @@ static InterpretResult run() {
                 break;
             }
             case OP_GET_INDEX: {
+                // Stack: [..., container, key]
+                if (IS_DICT(peek(1))) {
+                    if (!IS_STRING(peek(0))) {
+                        runtimeError("Dictionary key must be a string.");
+                        return INTERPRET_RUNTIME_ERROR;
+                    }
+                    ObjDict* dict = AS_DICT(peek(1));
+                    Value value;
+                    if (!tableGet(&dict->table, AS_CSTRING(peek(0)), &value))
+                        value = NIL_VAL;  // missing key reads as nil
+                    pop();               // key
+                    vm.stackTop[-1] = value;  // replace dict with value
+                    break;
+                }
                 if (!IS_NUMBER(peek(0))) {
                     runtimeError("Array index must be a number.");
                     return INTERPRET_RUNTIME_ERROR;
                 }
                 int idx = (int)AS_NUMBER(pop());
                 if (!IS_ARRAY(peek(0))) {
-                    runtimeError("Can only index arrays.");
+                    runtimeError("Can only index arrays and dictionaries.");
                     return INTERPRET_RUNTIME_ERROR;
                 }
                 ObjArray* array = AS_ARRAY(pop());
@@ -472,14 +487,28 @@ static InterpretResult run() {
                 break;
             }
             case OP_SET_INDEX: {
-                // Stack: [..., array, index, value]
+                // Stack: [..., container, key/index, value]
+                if (IS_DICT(peek(2))) {
+                    if (!IS_STRING(peek(1))) {
+                        runtimeError("Dictionary key must be a string.");
+                        return INTERPRET_RUNTIME_ERROR;
+                    }
+                    ObjDict* dict = AS_DICT(peek(2));
+                    Value value   = peek(0);
+                    // dict, key and value are all live on the stack, so a GC
+                    // triggered by tableSet's resize cannot collect them.
+                    tableSet(&dict->table, AS_CSTRING(peek(1)), value);
+                    pop(); pop();             // pop value, key
+                    vm.stackTop[-1] = value;  // replace dict with value
+                    break;
+                }
                 if (!IS_NUMBER(peek(1))) {
                     runtimeError("Array index must be a number.");
                     return INTERPRET_RUNTIME_ERROR;
                 }
                 int idx = (int)AS_NUMBER(peek(1));
                 if (!IS_ARRAY(peek(2))) {
-                    runtimeError("Can only index arrays.");
+                    runtimeError("Can only index arrays and dictionaries.");
                     return INTERPRET_RUNTIME_ERROR;
                 }
                 ObjArray* array = AS_ARRAY(peek(2));
@@ -492,6 +521,28 @@ static InterpretResult run() {
                 array->elements.values[idx] = value;
                 pop(); pop();           // pop value, index
                 vm.stackTop[-1] = value;  // replace array with value on stack
+                break;
+            }
+            // --- Dictionaries ---
+            case OP_DICT: {
+                int count      = READ_BYTE();
+                ObjDict* dict = newDict();
+                // Root the dict on the stack before tableSet calls, which may
+                // reallocate (and thus trigger GC). The key/value pairs sit
+                // just below and remain roots too.
+                push(OBJ_VAL(dict));
+                for (int p = 0; p < count; p++) {
+                    Value key = vm.stackTop[-1 - 2 * count + 2 * p];
+                    Value val = vm.stackTop[-1 - 2 * count + 2 * p + 1];
+                    if (!IS_STRING(key)) {
+                        runtimeError("Dictionary keys must be strings.");
+                        return INTERPRET_RUNTIME_ERROR;
+                    }
+                    tableSet(&dict->table, AS_CSTRING(key), val);
+                }
+                Value result = pop();       // the dict (temp root)
+                vm.stackTop -= 2 * count;   // pop all key/value pairs
+                push(result);
                 break;
             }
 

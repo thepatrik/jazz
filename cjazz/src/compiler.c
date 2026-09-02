@@ -527,6 +527,26 @@ static void array(bool canAssign) {
     emitBytes(OP_ARRAY, (uint8_t)count);
 }
 
+// Dictionary literal:  { "key": value, "key2": value2 }  (empty: {})
+// Only reachable in expression position; a '{' at the start of a statement is
+// consumed as a block by statement() before the expression parser runs.
+static void dict(bool canAssign) {
+    (void)canAssign;
+    int count = 0;
+    if (!check(TOKEN_RIGHT_BRACE)) {
+        do {
+            expression();  // key (must evaluate to a string at runtime)
+            consume(TOKEN_COLON, "Expected ':' after dictionary key.");
+            expression();  // value
+            if (count == 255)
+                error("Cannot have more than 255 entries in dictionary literal.");
+            count++;
+        } while (match(TOKEN_COMMA));
+    }
+    consume(TOKEN_RIGHT_BRACE, "Expected '}' after dictionary entries.");
+    emitBytes(OP_DICT, (uint8_t)count);
+}
+
 static void index_(bool canAssign) {
     expression();
     consume(TOKEN_RIGHT_BRACKET, "Expected ']' after index.");
@@ -553,12 +573,13 @@ static void or_(bool canAssign) {
 ParseRule rules[] = {
     [TOKEN_LEFT_PAREN]    = {grouping, call, PREC_CALL},
     [TOKEN_RIGHT_PAREN]   = {NULL, NULL, PREC_NONE},
-    [TOKEN_LEFT_BRACE]    = {NULL, NULL, PREC_NONE},
+    [TOKEN_LEFT_BRACE]    = {dict, NULL, PREC_NONE},
     [TOKEN_RIGHT_BRACE]   = {NULL, NULL, PREC_NONE},
     [TOKEN_LEFT_BRACKET]  = {array, index_, PREC_CALL},
     [TOKEN_RIGHT_BRACKET] = {NULL, NULL, PREC_NONE},
     [TOKEN_COMMA]         = {NULL, NULL, PREC_NONE},
     [TOKEN_DOT]           = {NULL, NULL, PREC_NONE},
+    [TOKEN_COLON]         = {NULL, NULL, PREC_NONE},
     [TOKEN_MINUS]         = {unary, binary, PREC_TERM},
     [TOKEN_PLUS]          = {NULL, binary, PREC_TERM},
     [TOKEN_SEMICOLON]     = {NULL, NULL, PREC_NONE},

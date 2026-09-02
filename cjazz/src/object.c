@@ -6,6 +6,7 @@
 
 #include "chunk.h"
 #include "memory.h"
+#include "table.h"
 #include "value.h"
 #include "vm.h"
 
@@ -23,6 +24,12 @@ ObjArray* newArray() {
     ObjArray* array = (ObjArray*)allocObject(sizeof(ObjArray), OBJ_ARRAY);
     initValueArray(&array->elements);
     return array;
+}
+
+ObjDict* newDict() {
+    ObjDict* dict = (ObjDict*)allocObject(sizeof(ObjDict), OBJ_DICT);
+    initTable(&dict->table);
+    return dict;
 }
 
 ObjFunction* newFunction() {
@@ -80,6 +87,12 @@ void freeObject(Obj* obj) {
             FREE(ObjArray, array);
             break;
         }
+        case OBJ_DICT: {
+            ObjDict* dict = (ObjDict*)obj;
+            freeTable(&dict->table);
+            FREE(ObjDict, dict);
+            break;
+        }
         case OBJ_NATIVE:
             FREE(ObjNative, obj);
             break;
@@ -119,6 +132,22 @@ void printObject(Value value) {
                 printValue(array->elements.values[i]);
             }
             printf("]");
+            break;
+        }
+        case OBJ_DICT: {
+            ObjDict* dict = AS_DICT(value);
+            printf("{");
+            bool first = true;
+            for (int i = 0; i < dict->table.capacity; i++) {
+                Entry* entry = &dict->table.entries[i];
+                if (entry->key == NULL)
+                    continue;
+                if (!first) printf(", ");
+                first = false;
+                printf("\"%s\": ", entry->key);
+                printValue(entry->value);
+            }
+            printf("}");
             break;
         }
         case OBJ_FUNCTION: {

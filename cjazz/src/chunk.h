@@ -54,8 +54,11 @@ typedef enum {
 
     // Arrays
     OP_ARRAY,      // operand: element count (uint8)
-    OP_GET_INDEX,  // pops index + array, pushes element
-    OP_SET_INDEX,  // pops value/index/array, pushes value
+    OP_GET_INDEX,  // pops key/index + container, pushes element (nil if missing)
+    OP_SET_INDEX,  // pops value/key/container, pushes value
+
+    // Dictionaries
+    OP_DICT,       // operand: entry (key/value pair) count (uint8)
 } OpCode;
 
 typedef struct {

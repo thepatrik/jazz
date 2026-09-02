@@ -135,6 +135,8 @@ func (scanner *Scanner) findToken() (*Token, error) {
 		return scanner.createToken(TokenTypeComma), nil
 	case '.':
 		return scanner.createToken(TokenTypeDot), nil
+	case ':':
+		return scanner.createToken(TokenTypeColon), nil
 	case '-':
 		return scanner.createToken(TokenTypeMinus), nil
 	case '+':

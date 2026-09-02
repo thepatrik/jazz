@@ -128,6 +128,8 @@ int disassembleInstruction(Chunk* chunk, int offset) {
             return simpleInstruction("OP_GET_INDEX", offset);
         case OP_SET_INDEX:
             return simpleInstruction("OP_SET_INDEX", offset);
+        case OP_DICT:
+            return byteInstruction("OP_DICT", chunk, offset);
         default:
             printf("Unknown opcode %d\n", instruction);
             return offset + 1;

@@ -18,10 +18,12 @@ func (l *LenNative) Call(_ *Interpreter, args ...interface{}) interface{} {
 	switch v := args[0].(type) {
 	case *JazzArray:
 		return float64(len(v.Elements))
+	case *JazzDict:
+		return float64(len(v.Entries))
 	case string:
 		return float64(len(v))
 	}
-	panic(&InterpreterError{Message: "len() argument must be an array or string"})
+	panic(&InterpreterError{Message: "len() argument must be an array, dictionary or string"})
 }
 
 func (l *LenNative) String() string { return "<native fn>" }

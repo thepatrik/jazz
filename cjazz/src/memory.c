@@ -62,6 +62,17 @@ static void blackenObject(Obj* obj) {
         case OBJ_ARRAY:
             markArray(&((ObjArray*)obj)->elements);
             break;
+        case OBJ_DICT: {
+            // Keys are raw strdup'd char* (not GC objects); only the stored
+            // values can reference heap objects, so mark each of those.
+            Table* table = &((ObjDict*)obj)->table;
+            for (int i = 0; i < table->capacity; i++) {
+                Entry* entry = &table->entries[i];
+                if (entry->key != NULL)
+                    markValue(entry->value);
+            }
+            break;
+        }
         case OBJ_UPVALUE:
             // Open upvalue: location points into the stack (already a root).
             // Closed upvalue: 'closed' holds the captured value — mark it.

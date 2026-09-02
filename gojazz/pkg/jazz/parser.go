@@ -658,6 +658,40 @@ func (p *Parser) primary() (Expr, error) {
 		}
 		return &ArrayExpr{Elements: elements, Bracket: bracket}, nil
 	}
+	// Dictionary literal:  { "key": value, "key2": value2 }  (empty: {})
+	// Only reachable in expression position; a '{' at the start of a statement
+	// is consumed as a block by stmt() before the expression parser runs.
+	if p.match(TokenTypeLeftBrace) {
+		brace := p.previous()
+		keys := []Expr{}
+		vals := []Expr{}
+		if !p.check(TokenTypeRightBrace) {
+			for {
+				key, err := p.expression()
+				if err != nil {
+					return nil, err
+				}
+				_, err = p.consume(TokenTypeColon, "expected ':' after dictionary key.")
+				if err != nil {
+					return nil, err
+				}
+				val, err := p.expression()
+				if err != nil {
+					return nil, err
+				}
+				keys = append(keys, key)
+				vals = append(vals, val)
+				if !p.match(TokenTypeComma) {
+					break
+				}
+			}
+		}
+		_, err := p.consume(TokenTypeRightBrace, "expected '}' after dictionary entries.")
+		if err != nil {
+			return nil, err
+		}
+		return &DictExpr{Keys: keys, Vals: vals, Brace: brace}, nil
+	}
 	if p.match(TokenTypeFalse) {
 		return &LiteralExpr{Val: false}, nil
 	}

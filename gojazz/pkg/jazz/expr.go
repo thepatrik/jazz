@@ -5,6 +5,7 @@ type ExprVisitor interface {
 	VisitAssignExpr(expr *AssignExpr) (interface{}, error)
 	VisitBinExpr(expr *BinExpr) (interface{}, error)
 	VisitCallExpr(expr *CallExpr) (interface{}, error)
+	VisitDictExpr(expr *DictExpr) (interface{}, error)
 	VisitGroupingExpr(expr *GroupingExpr) (interface{}, error)
 	VisitIndexGetExpr(expr *IndexGetExpr) (interface{}, error)
 	VisitIndexSetExpr(expr *IndexSetExpr) (interface{}, error)
@@ -39,6 +40,12 @@ type CallExpr struct {
 	Callee Expr
 	Paren  *Token
 	Args   []Expr
+}
+
+type DictExpr struct {
+	Keys  []Expr
+	Vals  []Expr
+	Brace *Token
 }
 
 type GroupingExpr struct {
@@ -91,6 +98,10 @@ func (expr *BinExpr) Accept(v ExprVisitor) (interface{}, error) {
 
 func (expr *CallExpr) Accept(v ExprVisitor) (interface{}, error) {
 	return v.VisitCallExpr(expr)
+}
+
+func (expr *DictExpr) Accept(v ExprVisitor) (interface{}, error) {
+	return v.VisitDictExpr(expr)
 }
 
 func (expr *GroupingExpr) Accept(v ExprVisitor) (interface{}, error) {

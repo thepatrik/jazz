@@ -230,14 +230,48 @@ func (i *Interpreter) VisitArrayExpr(expr *ArrayExpr) (interface{}, error) {
 	return NewJazzArray(elements), nil
 }
 
+func (i *Interpreter) VisitDictExpr(expr *DictExpr) (interface{}, error) {
+	entries := make(map[string]interface{}, len(expr.Keys))
+	for idx := range expr.Keys {
+		keyVal, err := i.eval(expr.Keys[idx])
+		if err != nil {
+			return nil, err
+		}
+		key, ok := keyVal.(string)
+		if !ok {
+			panic(&InterpreterError{Message: "Dictionary keys must be strings."})
+		}
+		val, err := i.eval(expr.Vals[idx])
+		if err != nil {
+			return nil, err
+		}
+		entries[key] = val
+	}
+	return NewJazzDict(entries), nil
+}
+
 func (i *Interpreter) VisitIndexGetExpr(expr *IndexGetExpr) (interface{}, error) {
 	obj, err := i.eval(expr.Object)
 	if err != nil {
 		return nil, err
 	}
+	if dict, ok := obj.(*JazzDict); ok {
+		keyVal, err := i.eval(expr.Index)
+		if err != nil {
+			return nil, err
+		}
+		key, ok := keyVal.(string)
+		if !ok {
+			panic(&InterpreterError{Message: "Dictionary key must be a string."})
+		}
+		if v, found := dict.Entries[key]; found {
+			return v, nil
+		}
+		return nil, nil // missing key reads as nil
+	}
 	arr, ok := obj.(*JazzArray)
 	if !ok {
-		panic(&InterpreterError{Message: "Can only index arrays."})
+		panic(&InterpreterError{Message: "Can only index arrays and dictionaries."})
 	}
 	idxVal, err := i.eval(expr.Index)
 	if err != nil {
@@ -255,9 +289,25 @@ func (i *Interpreter) VisitIndexSetExpr(expr *IndexSetExpr) (interface{}, error)
 	if err != nil {
 		return nil, err
 	}
+	if dict, ok := obj.(*JazzDict); ok {
+		keyVal, err := i.eval(expr.Index)
+		if err != nil {
+			return nil, err
+		}
+		key, ok := keyVal.(string)
+		if !ok {
+			panic(&InterpreterError{Message: "Dictionary key must be a string."})
+		}
+		val, err := i.eval(expr.Val)
+		if err != nil {
+			return nil, err
+		}
+		dict.Entries[key] = val // insert or overwrite
+		return val, nil
+	}
 	arr, ok := obj.(*JazzArray)
 	if !ok {
-		panic(&InterpreterError{Message: "Can only index arrays."})
+		panic(&InterpreterError{Message: "Can only index arrays and dictionaries."})
 	}
 	idxVal, err := i.eval(expr.Index)
 	if err != nil {

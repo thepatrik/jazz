@@ -334,6 +334,18 @@ func (resolver *Resolver) VisitArrayExpr(expr *ArrayExpr) (interface{}, error) {
 	return nil, nil
 }
 
+func (resolver *Resolver) VisitDictExpr(expr *DictExpr) (interface{}, error) {
+	for idx := range expr.Keys {
+		if err := resolver.resolveExpr(expr.Keys[idx]); err != nil {
+			return nil, err
+		}
+		if err := resolver.resolveExpr(expr.Vals[idx]); err != nil {
+			return nil, err
+		}
+	}
+	return nil, nil
+}
+
 func (resolver *Resolver) VisitIndexGetExpr(expr *IndexGetExpr) (interface{}, error) {
 	if err := resolver.resolveExpr(expr.Object); err != nil {
 		return nil, err
