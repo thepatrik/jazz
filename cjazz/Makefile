@@ -5,10 +5,11 @@ BIN		:= ./bin
 OBJ		:= ./obj
 INCLUDE	:= ./include
 SRC		:= ./src
+VENDOR	:= ./vendor/linenoise
 SRCS	:= $(wildcard $(SRC)/*.c)
-OBJS	:= $(patsubst $(SRC)/%.c,$(OBJ)/%.o,$(SRCS))
+OBJS	:= $(patsubst $(SRC)/%.c,$(OBJ)/%.o,$(SRCS)) $(OBJ)/linenoise.o
 EXE		:= $(BIN)/main.exe
-CFLAGS	:= -I$(INCLUDE) -O2
+CFLAGS	:= -I$(INCLUDE) -I$(VENDOR) -O2
 LDLIBS	:= -lm
 
 .DEFAULT_GOAL := run
@@ -21,6 +22,10 @@ $(EXE): $(OBJS) | $(BIN)
 	$(CC) $(LDFLAGS) $^ -o $@ $(LDLIBS)
 
 $(OBJ)/%.o: $(SRC)/%.c | $(OBJ)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# Vendored linenoise (line-editing library). Built separately from $(SRC).
+$(OBJ)/linenoise.o: $(VENDOR)/linenoise.c | $(OBJ)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BIN) $(OBJ):
